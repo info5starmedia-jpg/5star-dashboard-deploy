@@ -1,0 +1,9 @@
+version: "3.9"
+services:
+  app:
+    build: .
+    env_file:
+      - .env.staging
+    ports:
+      - "127.0.0.1:3001:3000"
+    restart: unless-stopped
