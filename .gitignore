@@ -1,24 +1,13 @@
-# Node / Next
 node_modules/
 .next/
 out/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Env
-.env
-.env.*
-
-# Prisma / SQLite
 data/
 *.db
 *.db-journal
-
-# OS / editor
+.env
+.env.*
+*.tgz
+*.log
 .DS_Store
 .vscode/
 .idea/
-
-# Archives
-*.tgz
