@@ -6,6 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "node scripts/start.js",
+    "backup:db": "node scripts/backup-db.js",
+    "export:db": "node scripts/export-db.js",
     "lint": "eslint",
     "start:next": "next start"
   },

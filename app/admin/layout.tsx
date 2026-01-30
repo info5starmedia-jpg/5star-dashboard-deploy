@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/admin";
+import AdminThemeToggle from "@/components/AdminThemeToggle";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await requireAdminSession();
@@ -9,7 +10,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
 
   return (
-    <div style={{ maxWidth: 1100, margin: "24px auto", padding: "0 16px" }}>
+    <div className="admin-layout" style={{ maxWidth: 1100, margin: "24px auto", padding: "0 16px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
         <div>
           <div style={{ fontWeight: 800, fontSize: 20 }}>Admin</div>
@@ -20,6 +21,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <Link href="/dashboard">Dashboard</Link>
           <Link href="/admin">Admin Home</Link>
           <Link href="/admin/inventory">Inventory</Link>
+          <Link href="/admin/invoices">Invoices</Link>
+          <Link href="/admin/audit">Audit</Link>
+          <AdminThemeToggle />
         </div>
       </div>
 

@@ -13,6 +13,13 @@ const {
   AUTH_SECRET,
 } = process.env;
 
+type TokenFlags = {
+  isAdmin?: boolean;
+  isSubscriber?: boolean;
+  subscriptionStatus?: string | null;
+  currentPeriodEnd?: Date | string | null;
+};
+
 export const authOptions: NextAuthOptions = {
   secret: NEXTAUTH_SECRET || AUTH_SECRET,
   session: { strategy: "jwt" },
@@ -32,36 +39,37 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token }) {
       const email = token?.email ? String(token.email) : "";
+      const tokenFlags = token as typeof token & TokenFlags;
       if (email) {
-        (token as any).isAdmin = isAdminEmail(email);
+        tokenFlags.isAdmin = isAdminEmail(email);
 
         try {
           const ent = await getEntitlementsByEmail(email);
-          (token as any).isSubscriber = !!ent?.isActiveSubscriber;
-          (token as any).subscriptionStatus = ent?.subscriptionStatus ?? null;
-          (token as any).currentPeriodEnd = ent?.currentPeriodEnd ?? null;
+          tokenFlags.isSubscriber = !!ent?.isActiveSubscriber;
+          tokenFlags.subscriptionStatus = ent?.subscriptionStatus ?? null;
+          tokenFlags.currentPeriodEnd = ent?.currentPeriodEnd ?? null;
         } catch {
-          (token as any).isSubscriber = false;
-          (token as any).subscriptionStatus = null;
-          (token as any).currentPeriodEnd = null;
+          tokenFlags.isSubscriber = false;
+          tokenFlags.subscriptionStatus = null;
+          tokenFlags.currentPeriodEnd = null;
         }
       } else {
-        (token as any).isAdmin = false;
-        (token as any).isSubscriber = false;
-        (token as any).subscriptionStatus = null;
-        (token as any).currentPeriodEnd = null;
+        tokenFlags.isAdmin = false;
+        tokenFlags.isSubscriber = false;
+        tokenFlags.subscriptionStatus = null;
+        tokenFlags.currentPeriodEnd = null;
       }
       return token;
     },
 
     async session({ session, token }) {
       if (session?.user) {
-        (session.user as any).isAdmin = !!(token as any).isAdmin;
-        (session.user as any).isSubscriber = !!(token as any).isSubscriber;
-        (session.user as any).subscriptionStatus =
-          (token as any).subscriptionStatus ?? null;
-        (session.user as any).currentPeriodEnd =
-          (token as any).currentPeriodEnd ?? null;
+        const user = session.user as typeof session.user & TokenFlags;
+        const tokenFlags = token as typeof token & TokenFlags;
+        user.isAdmin = !!tokenFlags.isAdmin;
+        user.isSubscriber = !!tokenFlags.isSubscriber;
+        user.subscriptionStatus = tokenFlags.subscriptionStatus ?? null;
+        user.currentPeriodEnd = tokenFlags.currentPeriodEnd ?? null;
       }
       return session;
     },

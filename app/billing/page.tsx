@@ -11,6 +11,12 @@ async function postJson(path: string) {
   return data;
 }
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  return fallback;
+}
+
 export default function BillingPage() {
   const { data: session, status } = useSession();
   const [loading, setLoading] = useState<null | "checkout" | "portal">(null);
@@ -25,8 +31,8 @@ export default function BillingPage() {
       const { url } = await postJson("/api/stripe/create-checkout-session");
       if (!url) throw new Error("No checkout url returned");
       window.location.href = url;
-    } catch (e: any) {
-      setError(e?.message || "Checkout failed");
+    } catch (error: unknown) {
+      setError(getErrorMessage(error, "Checkout failed"));
       setLoading(null);
     }
   }
@@ -38,8 +44,8 @@ export default function BillingPage() {
       const { url } = await postJson("/api/stripe/create-portal-session");
       if (!url) throw new Error("No portal url returned");
       window.location.href = url;
-    } catch (e: any) {
-      setError(e?.message || "Portal failed");
+    } catch (error: unknown) {
+      setError(getErrorMessage(error, "Portal failed"));
       setLoading(null);
     }
   }
@@ -59,7 +65,7 @@ export default function BillingPage() {
           <button
             onClick={() => signIn(undefined, { callbackUrl: "/billing" })}
             style={{ padding: "10px 14px", borderRadius: 10, cursor: "pointer" }}
-            >
+          >
             Sign in
           </button>
         </div>

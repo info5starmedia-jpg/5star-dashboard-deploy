@@ -4,6 +4,12 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  return fallback;
+}
+
 export async function POST() {
   try {
     const session = await getServerSession(authOptions);
@@ -33,9 +39,9 @@ export async function POST() {
     });
 
     return NextResponse.json({ url: portal.url });
-  } catch (e: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { error: e?.message || "Portal session failed" },
+      { error: getErrorMessage(error, "Portal session failed") },
       { status: 500 }
     );
   }

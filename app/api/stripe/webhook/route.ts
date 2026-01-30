@@ -5,6 +5,11 @@ import { stripe } from "@/lib/stripe";
 
 export const runtime = "nodejs";
 
+type SubscriptionPayload = Stripe.Subscription & {
+  customer_email?: string | null;
+  current_period_end?: number | null;
+};
+
 async function getRawBody(request: Request) {
   return await request.text();
 }
@@ -13,7 +18,7 @@ function getSignature(request: Request) {
   return request.headers.get("stripe-signature") || "";
 }
 
-async function resolveUserEmailFromSubscription(sub: any): Promise<string | null> {
+async function resolveUserEmailFromSubscription(sub: SubscriptionPayload): Promise<string | null> {
   // 1) customer_email (sometimes present)
   if (sub?.customer_email && typeof sub.customer_email === "string") return sub.customer_email;
 
@@ -31,9 +36,9 @@ async function resolveUserEmailFromSubscription(sub: any): Promise<string | null
   if (!customerId) return null;
 
   const customer = await stripe.customers.retrieve(customerId);
-  if ((customer as any)?.deleted) return null;
+  if ("deleted" in customer && customer.deleted) return null;
 
-  return (customer as Stripe.Customer).email || null;
+  return customer.email || null;
 }
 
 export async function POST(request: Request) {
@@ -48,8 +53,9 @@ export async function POST(request: Request) {
   let event: Stripe.Event;
   try {
     event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
-  } catch (err: any) {
-    return NextResponse.json({ error: `Webhook Error: ${err?.message || "invalid signature"}` }, { status: 400 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "invalid signature";
+    return NextResponse.json({ error: `Webhook Error: ${message}` }, { status: 400 });
   }
 
   // idempotency: store once
@@ -62,7 +68,7 @@ export async function POST(request: Request) {
   try {
     switch (event.type) {
       case "checkout.session.completed": {
-        const session = event.data.object as any;
+        const session = event.data.object as Stripe.Checkout.Session;
 
         const userEmail =
           session?.metadata?.userEmail ||
@@ -101,7 +107,7 @@ export async function POST(request: Request) {
       case "customer.subscription.created":
       case "customer.subscription.updated":
       case "customer.subscription.deleted": {
-        const sub = event.data.object as any;
+        const sub = event.data.object as SubscriptionPayload;
 
         const userEmail = await resolveUserEmailFromSubscription(sub);
         if (!userEmail) break;
@@ -112,15 +118,15 @@ export async function POST(request: Request) {
             : sub?.customer?.id || "";
 
         const priceId =
-          sub?.items?.data?.[0]?.price?.id ||
+          sub.items?.data?.[0]?.price?.id ||
           process.env.STRIPE_PRICE_ID_MONTHLY ||
           "";
 
-        const status = sub?.status || "unknown";
-        const cancelAtPeriodEnd = !!sub?.cancel_at_period_end;
+        const status = sub.status || "unknown";
+        const cancelAtPeriodEnd = !!sub.cancel_at_period_end;
 
         // Some Stripe payloads use current_period_end (unix seconds). If missing, keep null.
-        const cpe = sub?.current_period_end;
+        const cpe = sub.current_period_end;
         const currentPeriodEnd =
           typeof cpe === "number" ? new Date(cpe * 1000) : null;
 
@@ -181,7 +187,8 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ received: true });
-  } catch (err: any) {
-    return NextResponse.json({ error: err?.message || "Webhook handler failed" }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Webhook handler failed";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

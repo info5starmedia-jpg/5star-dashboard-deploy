@@ -23,11 +23,13 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (isAdminRoute(pathname) && !(token as any).isAdmin) {
+  const tokenFlags = token as typeof token & { isAdmin?: boolean; isSubscriber?: boolean };
+
+  if (isAdminRoute(pathname) && !tokenFlags.isAdmin) {
     return NextResponse.redirect(new URL("/", req.url));
   }
 
-  if (isDashboardRoute(pathname) && !((token as any).isAdmin || (token as any).isSubscriber)) {
+  if (isDashboardRoute(pathname) && !(tokenFlags.isAdmin || tokenFlags.isSubscriber)) {
     return NextResponse.redirect(new URL("/billing", req.url));
   }
 

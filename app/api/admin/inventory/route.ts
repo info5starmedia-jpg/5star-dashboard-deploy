@@ -28,12 +28,16 @@ export async function POST(req: Request) {
   const sku = String(body?.sku || "").trim();
   const quantity = Number(body?.quantity ?? 0);
   const priceCents = Number(body?.priceCents ?? 0);
+  const costCents = Number(body?.costCents ?? 0);
 
   if (!name || !sku) return NextResponse.json({ error: "Missing name or sku" }, { status: 400 });
-  if (!Number.isFinite(quantity) || !Number.isFinite(priceCents)) {
-    return NextResponse.json({ error: "Invalid quantity/priceCents" }, { status: 400 });
+  if (!Number.isFinite(quantity) || !Number.isFinite(priceCents) || !Number.isFinite(costCents)) {
+    return NextResponse.json({ error: "Invalid quantity/priceCents/costCents" }, { status: 400 });
+  }
+  if (priceCents < 0 || costCents < 0) {
+    return NextResponse.json({ error: "Invalid priceCents/costCents" }, { status: 400 });
   }
 
-  const item = await prisma.inventoryItem.create({ data: { name, sku, quantity, priceCents } });
+  const item = await prisma.inventoryItem.create({ data: { name, sku, quantity, priceCents, costCents } });
   return NextResponse.json({ item });
 }

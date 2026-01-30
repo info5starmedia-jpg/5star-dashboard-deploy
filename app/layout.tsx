@@ -71,12 +71,12 @@ export default async function RootLayout({
                       </form>
                     </>
                   ) : (
-                    <a
+                    <Link
                       className="rounded-md bg-zinc-900 px-3 py-1.5 font-medium text-white transition hover:bg-zinc-800"
                       href="/api/auth/signin"
                     >
                       Sign in
-                    </a>
+                    </Link>
                   )}
                 </div>
               </div>

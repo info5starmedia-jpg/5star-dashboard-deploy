@@ -63,7 +63,7 @@ export default function AdminPanel(props: {
 
   return (
     <div className="grid gap-8">
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="admin-card rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-lg font-semibold">Users</h2>
           <button
@@ -134,7 +134,7 @@ export default function AdminPanel(props: {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="admin-card rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-lg font-semibold">Audit logs (latest 50)</h2>
           <button

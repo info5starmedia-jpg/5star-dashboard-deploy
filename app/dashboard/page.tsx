@@ -9,7 +9,7 @@ export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) redirect("/signin");
 
-  const role = (session.user as any).role ?? "user";
+  const role = (session.user as { role?: string }).role ?? "user";
   const isAdmin = role === "admin" || session.user.email === OWNER_EMAIL;
 
   return (

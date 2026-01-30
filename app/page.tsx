@@ -36,12 +36,12 @@ export default async function HomePage() {
         ) : (
           <div className="space-y-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
             <p className="text-sm text-zinc-600">You&apos;re not signed in yet.</p>
-            <a
+            <Link
               className="inline-flex items-center justify-center rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800"
               href="/api/auth/signin"
             >
               Sign in
-            </a>
+            </Link>
           </div>
         )}
       </main>

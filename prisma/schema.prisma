@@ -57,8 +57,38 @@ model InventoryItem {
   sku        String   @unique
   quantity   Int
   priceCents Int
+  costCents  Int      @default(0)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   @@index([name])
+}
+
+model Invoice {
+  id             String            @id @default(cuid())
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  createdByEmail String
+  customerEmail  String?
+  status         String            @default("issued")
+  subtotalCents  Int
+  taxCents       Int               @default(0)
+  totalCents     Int
+  lineItems      InvoiceLineItem[]
+
+  @@index([createdAt])
+  @@index([customerEmail])
+}
+
+model InvoiceLineItem {
+  id             String  @id @default(cuid())
+  invoiceId      String
+  invoice        Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description    String
+  sku            String?
+  quantity       Int
+  unitPriceCents Int
+  totalCents     Int
+
+  @@index([invoiceId])
 }

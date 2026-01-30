@@ -8,6 +8,14 @@ type Item = {
   sku: string;
   quantity: number;
   priceCents: number;
+  costCents: number;
+};
+
+type Metrics = {
+  totalUnits: number;
+  totalValueCents: number;
+  totalCostCents: number;
+  profitCents: number;
 };
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -17,8 +25,15 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return data as T;
 }
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  return fallback;
+}
+
 export default function InventoryClient() {
   const [items, setItems] = useState<Item[]>([]);
+  const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -26,19 +41,30 @@ export default function InventoryClient() {
   const [sku, setSku] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [priceCents, setPriceCents] = useState("0");
+  const [costCents, setCostCents] = useState("0");
 
   const canSubmit = useMemo(() => {
-    return name.trim() && sku.trim() && Number.isFinite(Number(quantity)) && Number.isFinite(Number(priceCents));
-  }, [name, sku, quantity, priceCents]);
+    return (
+      name.trim() &&
+      sku.trim() &&
+      Number.isFinite(Number(quantity)) &&
+      Number.isFinite(Number(priceCents)) &&
+      Number.isFinite(Number(costCents))
+    );
+  }, [name, sku, quantity, priceCents, costCents]);
 
   async function refresh() {
     setErr(null);
     setLoading(true);
     try {
-      const data = await api<{ items: Item[] }>("/api/admin/inventory");
+      const [data, metricsData] = await Promise.all([
+        api<{ items: Item[] }>("/api/admin/inventory"),
+        api<{ metrics: Metrics }>("/api/admin/metrics/inventory"),
+      ]);
       setItems(data.items || []);
-    } catch (e: any) {
-      setErr(e?.message || "Failed to load inventory");
+      setMetrics(metricsData.metrics ?? null);
+    } catch (error: unknown) {
+      setErr(getErrorMessage(error, "Failed to load inventory"));
     } finally {
       setLoading(false);
     }
@@ -59,15 +85,17 @@ export default function InventoryClient() {
           sku: sku.trim(),
           quantity: Number(quantity),
           priceCents: Number(priceCents),
+          costCents: Number(costCents),
         }),
       });
       setName("");
       setSku("");
       setQuantity("1");
       setPriceCents("0");
+      setCostCents("0");
       await refresh();
-    } catch (e: any) {
-      setErr(e?.message || "Create failed");
+    } catch (error: unknown) {
+      setErr(getErrorMessage(error, "Create failed"));
     }
   }
 
@@ -76,21 +104,36 @@ export default function InventoryClient() {
     try {
       await api(`/api/admin/inventory/${id}`, { method: "DELETE" });
       await refresh();
-    } catch (e: any) {
-      setErr(e?.message || "Delete failed");
+    } catch (error: unknown) {
+      setErr(getErrorMessage(error, "Delete failed"));
     }
   }
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
-      <div style={{ padding: 14, border: "1px solid #ddd", borderRadius: 12 }}>
+      <div className="admin-card" style={{ padding: 14, border: "1px solid #ddd", borderRadius: 12 }}>
+        <div style={{ fontWeight: 700, marginBottom: 10 }}>Inventory metrics</div>
+        {metrics ? (
+          <div style={{ display: "grid", gap: 6 }}>
+            <div>Total units: {metrics.totalUnits}</div>
+            <div>Inventory value: ${(metrics.totalValueCents / 100).toFixed(2)}</div>
+            <div>Inventory cost: ${(metrics.totalCostCents / 100).toFixed(2)}</div>
+            <div>Estimated profit: ${(metrics.profitCents / 100).toFixed(2)}</div>
+          </div>
+        ) : (
+          <div style={{ opacity: 0.7 }}>No metrics yet.</div>
+        )}
+      </div>
+
+      <div className="admin-card" style={{ padding: 14, border: "1px solid #ddd", borderRadius: 12 }}>
         <div style={{ fontWeight: 700, marginBottom: 10 }}>Add item</div>
 
-        <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
+        <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(5, minmax(0, 1fr))" }}>
           <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} style={{ padding: 10, borderRadius: 10, border: "1px solid #ccc" }} />
           <input placeholder="SKU" value={sku} onChange={(e) => setSku(e.target.value)} style={{ padding: 10, borderRadius: 10, border: "1px solid #ccc" }} />
           <input placeholder="Qty" value={quantity} onChange={(e) => setQuantity(e.target.value)} style={{ padding: 10, borderRadius: 10, border: "1px solid #ccc" }} />
           <input placeholder="Price (cents)" value={priceCents} onChange={(e) => setPriceCents(e.target.value)} style={{ padding: 10, borderRadius: 10, border: "1px solid #ccc" }} />
+          <input placeholder="Cost (cents)" value={costCents} onChange={(e) => setCostCents(e.target.value)} style={{ padding: 10, borderRadius: 10, border: "1px solid #ccc" }} />
         </div>
 
         <div style={{ marginTop: 10, display: "flex", gap: 10, alignItems: "center" }}>
@@ -115,7 +158,7 @@ export default function InventoryClient() {
         {err ? <div style={{ marginTop: 10, color: "#b00020" }}>{err}</div> : null}
       </div>
 
-      <div style={{ padding: 14, border: "1px solid #ddd", borderRadius: 12 }}>
+      <div className="admin-card" style={{ padding: 14, border: "1px solid #ddd", borderRadius: 12 }}>
         <div style={{ fontWeight: 700, marginBottom: 10 }}>Items</div>
 
         {items.length === 0 ? (
@@ -127,7 +170,7 @@ export default function InventoryClient() {
                 <div>
                   <div style={{ fontWeight: 700 }}>{it.name}</div>
                   <div style={{ opacity: 0.8, fontSize: 13 }}>
-                    SKU: {it.sku} · Qty: {it.quantity} · Price: {it.priceCents}¢
+                    SKU: {it.sku} · Qty: {it.quantity} · Price: {it.priceCents}¢ · Cost: {it.costCents}¢
                   </div>
                 </div>
                 <button onClick={() => del(it.id)} style={{ padding: "8px 10px", borderRadius: 10, border: "1px solid #ccc", cursor: "pointer" }}>

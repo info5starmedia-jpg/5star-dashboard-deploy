@@ -12,6 +12,9 @@ export default async function AdminHome() {
         <Link href="/admin/inventory" style={{ padding: 12, border: "1px solid #ddd", borderRadius: 10 }}>
           Inventory
         </Link>
+        <Link href="/admin/invoices" style={{ padding: 12, border: "1px solid #ddd", borderRadius: 10 }}>
+          Invoices
+        </Link>
       </div>
     </main>
   );
