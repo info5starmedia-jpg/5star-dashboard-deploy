@@ -18,6 +18,9 @@ data/
 # OS / editor
 .DS_Store
 .vscode/
+!.vscode/settings.json
+.kilocode/
+!.kilocode/**
 .idea/
 
 # Archives
