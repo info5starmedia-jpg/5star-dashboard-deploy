@@ -4,14 +4,9 @@ import GoogleProvider from "next-auth/providers/google";
 import { isAdminEmail } from "@/lib/isAdmin";
 import { getEntitlementsByEmail } from "@/lib/entitlements";
 
-const {
-  DISCORD_CLIENT_ID,
-  DISCORD_CLIENT_SECRET,
-  GOOGLE_CLIENT_ID,
-  GOOGLE_CLIENT_SECRET,
-  NEXTAUTH_SECRET,
-  AUTH_SECRET,
-} = process.env;
+function envClean(key: string): string {
+  return (process.env[key] || "").replace(/^["']|["']$/g, "").trim();
+}
 
 type TokenFlags = {
   isAdmin?: boolean;
@@ -21,18 +16,18 @@ type TokenFlags = {
 };
 
 export const authOptions: NextAuthOptions = {
-  secret: NEXTAUTH_SECRET || AUTH_SECRET,
+  secret: envClean("NEXTAUTH_SECRET") || envClean("AUTH_SECRET"),
   session: { strategy: "jwt" },
   pages: { signIn: "/signin" },
 
   providers: [
     DiscordProvider({
-      clientId: DISCORD_CLIENT_ID || "",
-      clientSecret: DISCORD_CLIENT_SECRET || "",
+      clientId: envClean("DISCORD_CLIENT_ID"),
+      clientSecret: envClean("DISCORD_CLIENT_SECRET"),
     }),
     GoogleProvider({
-      clientId: GOOGLE_CLIENT_ID || "",
-      clientSecret: GOOGLE_CLIENT_SECRET || "",
+      clientId: envClean("GOOGLE_CLIENT_ID"),
+      clientSecret: envClean("GOOGLE_CLIENT_SECRET"),
     }),
   ],
 
