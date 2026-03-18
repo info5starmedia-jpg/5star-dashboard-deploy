@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 
+function envClean(key: string): string {
+  return (process.env[key] || "").replace(/^["']|["']$/g, "").trim();
+}
+
 const isAdminRoute = (p: string) => p.startsWith("/admin") || p.startsWith("/api/admin");
 const isDashboardRoute = (p: string) => p.startsWith("/dashboard");
 const isBillingRoute = (p: string) => p.startsWith("/billing");
@@ -15,7 +19,8 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  const token = await getToken({ req });
+  const secret = envClean("NEXTAUTH_SECRET") || envClean("AUTH_SECRET");
+  const token = await getToken({ req, secret });
 
   if (!token) {
     const url = new URL("/api/auth/signin", req.url);
