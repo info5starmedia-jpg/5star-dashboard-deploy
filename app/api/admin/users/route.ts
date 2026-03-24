@@ -16,8 +16,8 @@ function getMeta(request: Request) {
 
 async function requireAdmin() {
   const session = await getServerSession(authOptions);
-  const role = (session?.user as { role?: string } | undefined)?.role;
-  if (!session?.user?.email || role !== "admin") return null;
+  const user = session?.user as { email?: string | null; isAdmin?: boolean } | undefined;
+  if (!user?.email || !user?.isAdmin) return null;
   return session;
 }
 
@@ -45,7 +45,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Bad request" }, { status: 400 });
   }
 
-  if (email === OWNER_EMAIL) {
+  if (email === OWNER_EMAIL.toLowerCase()) {
     return NextResponse.json({ error: "Owner role cannot be changed" }, { status: 400 });
   }
 
@@ -57,7 +57,7 @@ export async function PATCH(request: Request) {
 
   const meta = getMeta(request);
   await logAudit({
-    actorEmail: session.user.email!,
+    actorEmail: session.user!.email!,
     action: "role_change",
     targetEmail: email,
     ip: meta.ip,
