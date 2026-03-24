@@ -6,7 +6,8 @@ import AdminThemeToggle from "@/components/AdminThemeToggle";
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await requireAdminSession();
   if (!session?.user?.email) {
-    redirect(`/api/auth/signin?callbackUrl=${encodeURIComponent("/admin")}`);
+    // Redirect to the custom sign-in page, not the default NextAuth endpoint
+    redirect(`/signin?callbackUrl=${encodeURIComponent("/admin")}`);
   }
 
   return (
