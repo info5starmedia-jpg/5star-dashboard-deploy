@@ -47,6 +47,21 @@ function getErrorMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
+const STATUS_STYLES: Record<string, string> = {
+  issued:    "bg-blue-50 text-blue-700 border-blue-200",
+  void:      "bg-slate-100 text-slate-500 border-slate-200",
+  cancelled: "bg-red-50 text-red-600 border-red-200",
+};
+
+function StatusBadge({ status }: { status: string }) {
+  const cls = STATUS_STYLES[status] ?? "bg-slate-100 text-slate-500 border-slate-200";
+  return (
+    <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${cls}`}>
+      {status}
+    </span>
+  );
+}
+
 export default function InvoiceClient() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(false);
@@ -54,6 +69,8 @@ export default function InvoiceClient() {
   const [customerEmail, setCustomerEmail] = useState("");
   const [taxCents, setTaxCents] = useState("0");
   const [items, setItems] = useState<DraftItem[]>([emptyItem()]);
+  // Track which invoice IDs are currently being voided/cancelled
+  const [statusLoading, setStatusLoading] = useState<Record<string, boolean>>({});
 
   const subtotalPreview = useMemo(() => {
     return items.reduce((sum, item) => {
@@ -133,8 +150,35 @@ export default function InvoiceClient() {
     }
   }
 
+  async function updateInvoiceStatus(id: string, status: "void" | "cancelled") {
+    const label = status === "void" ? "void" : "cancel";
+    if (!confirm(`Are you sure you want to ${label} invoice ${id}? This cannot be undone.`)) return;
+
+    setStatusLoading((prev) => ({ ...prev, [id]: true }));
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/invoices/${id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || `Failed to ${label} invoice`);
+
+      // Update locally without a full reload
+      setInvoices((prev) =>
+        prev.map((inv) => (inv.id === id ? { ...inv, status: json.invoice.status } : inv))
+      );
+    } catch (err) {
+      setError(getErrorMessage(err, `Failed to ${label} invoice`));
+    } finally {
+      setStatusLoading((prev) => ({ ...prev, [id]: false }));
+    }
+  }
+
   return (
     <div className="grid gap-6">
+      {/* ── Create invoice form ── */}
       <section className="admin-card rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold">Create invoice</h2>
         <div className="mt-4 grid gap-3">
@@ -236,49 +280,85 @@ export default function InvoiceClient() {
         {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
       </section>
 
+      {/* ── Invoice list ── */}
       <section className="admin-card rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold">Recent invoices</h2>
         {invoices.length === 0 ? (
           <p className="mt-4 text-sm text-slate-600">No invoices yet.</p>
         ) : (
           <div className="mt-4 grid gap-4">
-            {invoices.map((invoice) => (
-              <div key={invoice.id} className="rounded-xl border border-slate-200 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm text-slate-500">Invoice</div>
-                    <div className="text-base font-semibold">{invoice.id}</div>
-                    <div className="text-xs text-slate-500">
-                      {new Date(invoice.createdAt).toLocaleString()}
-                    </div>
-                  </div>
-                  <div className="text-sm">
-                    <div>Customer: {invoice.customerEmail || "N/A"}</div>
-                    <div>Total: {formatMoney(invoice.totalCents)}</div>
-                  </div>
-                  <button
-                    className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium hover:bg-slate-50"
-                    type="button"
-                    onClick={() => window.open(`/api/admin/invoices/${invoice.id}/pdf`, "_blank")}
-                  >
-                    Download PDF
-                  </button>
-                </div>
-                <div className="mt-3 grid gap-2 text-sm text-slate-600">
-                  {invoice.lineItems.map((item) => (
-                    <div key={item.id} className="flex flex-wrap items-center justify-between">
-                      <div>
-                        {item.description}
-                        {item.sku ? <span className="text-slate-400"> [{item.sku}]</span> : null}
+            {invoices.map((invoice) => {
+              const isIssued = invoice.status === "issued";
+              const isBusy = !!statusLoading[invoice.id];
+
+              return (
+                <div key={invoice.id} className="rounded-xl border border-slate-200 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-base font-semibold">{invoice.id}</div>
+                        <StatusBadge status={invoice.status} />
                       </div>
-                      <div>
-                        {item.quantity} × {formatMoney(item.unitPriceCents)} = {formatMoney(item.totalCents)}
+                      <div className="text-xs text-slate-500">
+                        {new Date(invoice.createdAt).toLocaleString()}
                       </div>
                     </div>
-                  ))}
+
+                    <div className="text-sm">
+                      <div>Customer: {invoice.customerEmail || "N/A"}</div>
+                      <div>Total: {formatMoney(invoice.totalCents)}</div>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium hover:bg-slate-50"
+                        type="button"
+                        onClick={() => window.open(`/api/admin/invoices/${invoice.id}/pdf`, "_blank")}
+                      >
+                        Download PDF
+                      </button>
+
+                      {isIssued && (
+                        <>
+                          <button
+                            className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => updateInvoiceStatus(invoice.id, "void")}
+                          >
+                            {isBusy ? "…" : "Void"}
+                          </button>
+                          <button
+                            className="rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => updateInvoiceStatus(invoice.id, "cancelled")}
+                          >
+                            {isBusy ? "…" : "Cancel"}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Line items */}
+                  <div className="mt-3 grid gap-2 text-sm text-slate-600">
+                    {invoice.lineItems.map((item) => (
+                      <div key={item.id} className="flex flex-wrap items-center justify-between">
+                        <div>
+                          {item.description}
+                          {item.sku ? <span className="text-slate-400"> [{item.sku}]</span> : null}
+                        </div>
+                        <div>
+                          {item.quantity} × {formatMoney(item.unitPriceCents)} = {formatMoney(item.totalCents)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
