@@ -1,1 +1,1 @@
-export default function P(){return <div/>}
+export default function P(){return <div>hi</div>}
