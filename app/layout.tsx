@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Geist, Geist_Mono } from "next/font/google";
 import { getServerSession } from "next-auth";
 
 import Providers from "./providers";
@@ -8,15 +7,9 @@ import { authOptions } from "@/lib/auth";
 import SignOutButton from "@/components/SignOutButton";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+// next/font/google downloads fonts at build time and requires outbound network
+// access during `npm run build`. To keep Docker builds reliable in restricted
+// environments we use the Tailwind system-font stack instead (no network call).
 
 export const metadata: Metadata = {
   title: "5star Dashboard",
@@ -32,9 +25,7 @@ export default async function RootLayout({
 
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} min-h-screen bg-zinc-50 text-zinc-900 antialiased`}
-      >
+      <body className="min-h-screen bg-zinc-50 font-sans text-zinc-900 antialiased">
         <Providers>
           <div className="flex min-h-screen flex-col">
             <header className="border-b border-zinc-200 bg-white">
