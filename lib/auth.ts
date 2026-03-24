@@ -3,6 +3,7 @@ import DiscordProvider from "next-auth/providers/discord";
 import GoogleProvider from "next-auth/providers/google";
 import { isAdminEmail } from "@/lib/isAdmin";
 import { getEntitlementsByEmail } from "@/lib/entitlements";
+import { prisma } from "@/lib/prisma";
 
 function envClean(key: string): string {
   return (process.env[key] || "").replace(/^["']|["']$/g, "").trim();
@@ -32,6 +33,21 @@ export const authOptions: NextAuthOptions = {
   ],
 
   callbacks: {
+    // Upsert user row on every sign-in so the User table stays populated
+    async signIn({ user }) {
+      if (!user?.email) return true;
+      try {
+        await prisma.user.upsert({
+          where: { email: user.email.toLowerCase() },
+          create: { email: user.email.toLowerCase() },
+          update: { lastLoginAt: new Date() },
+        });
+      } catch {
+        // best-effort — never block sign-in
+      }
+      return true;
+    },
+
     async jwt({ token }) {
       const email = token?.email ? String(token.email) : "";
       const tokenFlags = token as typeof token & TokenFlags;
