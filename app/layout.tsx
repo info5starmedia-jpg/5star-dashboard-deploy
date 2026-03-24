@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth";
 
 import Providers from "./providers";
 import { authOptions } from "@/lib/auth";
+import SignOutButton from "@/components/SignOutButton";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -43,15 +44,9 @@ export default async function RootLayout({
                     5star
                   </Link>
                   <nav className="flex items-center gap-4 text-sm text-zinc-600">
-                    <Link className="hover:text-zinc-900" href="/">
-                      Home
-                    </Link>
-                    <Link className="hover:text-zinc-900" href="/dashboard">
-                      Dashboard
-                    </Link>
-                    <Link className="hover:text-zinc-900" href="/billing">
-                      Billing
-                    </Link>
+                    <Link className="hover:text-zinc-900" href="/">Home</Link>
+                    <Link className="hover:text-zinc-900" href="/dashboard">Dashboard</Link>
+                    <Link className="hover:text-zinc-900" href="/billing">Billing</Link>
                   </nav>
                 </div>
 
@@ -61,19 +56,12 @@ export default async function RootLayout({
                       <span className="hidden text-zinc-600 sm:inline">
                         {session.user.email}
                       </span>
-                      <form action="/api/auth/signout" method="post">
-                        <button
-                          className="rounded-md border border-zinc-300 px-3 py-1.5 font-medium text-zinc-700 transition hover:border-zinc-400 hover:text-zinc-900"
-                          type="submit"
-                        >
-                          Sign out
-                        </button>
-                      </form>
+                      <SignOutButton />
                     </>
                   ) : (
                     <Link
                       className="rounded-md bg-zinc-900 px-3 py-1.5 font-medium text-white transition hover:bg-zinc-800"
-                      href="/api/auth/signin"
+                      href="/signin"
                     >
                       Sign in
                     </Link>
