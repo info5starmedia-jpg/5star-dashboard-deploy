@@ -7,7 +7,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const session = await requireAdminSession();
   if (!session?.user?.email) redirect(`/signin?callbackUrl=${encodeURIComponent("/admin")}`);
   return (
-    <div className="admin-layout" style={{ maxWidth: 1100, margin: "24px auto", padding: "0 16px" }}>
+    <div style={{ maxWidth: 1100, margin: "24px auto", padding: "0 16px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
         <div>
           <div style={{ fontWeight: 800, fontSize: 20 }}>Admin</div>
