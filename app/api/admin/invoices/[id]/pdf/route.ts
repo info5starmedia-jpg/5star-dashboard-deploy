@@ -46,7 +46,7 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) 
     lineItems,
   });
 
-  return new Response(pdf, {
+  return new Response(Buffer.from(pdf) as unknown as BodyInit, {
     headers: {
       "content-type": "application/pdf",
       "content-disposition": `attachment; filename=invoice_${invoice.id}.pdf`,

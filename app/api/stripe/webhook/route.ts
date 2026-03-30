@@ -96,10 +96,9 @@ export async function POST(request: Request) {
             const sub = await stripe.subscriptions.retrieve(subscriptionId);
             status = sub.status;
             priceId = sub.items?.data?.[0]?.price?.id || priceId;
-            currentPeriodEnd = sub.current_period_end
-              ? new Date(sub.current_period_end * 1000)
-              : null;
-            cancelAtPeriodEnd = !!sub.cancel_at_period_end;
+            const periodEnd = (sub as unknown as Record<string, unknown>).current_period_end as number | null;
+            currentPeriodEnd = periodEnd ? new Date(periodEnd * 1000) : null;
+            cancelAtPeriodEnd = !!(sub as unknown as Record<string, unknown>).cancel_at_period_end;
           } catch {
             // Could not retrieve sub — fall back to "active" defaults
           }
@@ -158,8 +157,9 @@ export async function POST(request: Request) {
         const priceId =
           sub.items?.data?.[0]?.price?.id || process.env.STRIPE_PRICE_ID_MONTHLY || "";
         const status = sub.status || "unknown";
-        const cancelAtPeriodEnd = !!sub.cancel_at_period_end;
-        const cpe = sub.current_period_end;
+        const subAny = sub as unknown as Record<string, unknown>;
+        const cancelAtPeriodEnd = !!subAny.cancel_at_period_end;
+        const cpe = subAny.current_period_end as number | undefined;
         const currentPeriodEnd = typeof cpe === "number" ? new Date(cpe * 1000) : null;
 
         const existing = await prisma.subscription.findFirst({

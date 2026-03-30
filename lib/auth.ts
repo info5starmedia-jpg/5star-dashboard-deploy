@@ -20,6 +20,16 @@ export const authOptions: NextAuthOptions = {
   secret: envClean("NEXTAUTH_SECRET") || envClean("AUTH_SECRET"),
   session: { strategy: "jwt" },
   pages: { signIn: "/signin" },
+  cookies: {
+    state: {
+      name: "next-auth.state",
+      options: { httpOnly: true, sameSite: "lax", path: "/", secure: false },
+    },
+    pkceCodeVerifier: {
+      name: "next-auth.pkce.code_verifier",
+      options: { httpOnly: true, sameSite: "lax", path: "/", secure: false },
+    },
+  },
 
   providers: [
     DiscordProvider({
@@ -29,6 +39,9 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: envClean("GOOGLE_CLIENT_ID"),
       clientSecret: envClean("GOOGLE_CLIENT_SECRET"),
+      authorization: {
+        params: { prompt: "consent", access_type: "offline", response_type: "code" },
+      },
     }),
   ],
 

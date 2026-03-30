@@ -3,29 +3,42 @@ import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/admin";
 import AdminThemeToggle from "@/components/AdminThemeToggle";
 
+const navLinks = [
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/admin", label: "Home" },
+  { href: "/admin/inventory", label: "Inventory" },
+  { href: "/admin/invoices", label: "Invoices" },
+  { href: "/admin/analytics", label: "Analytics" },
+  { href: "/admin/users", label: "Users" },
+  { href: "/admin/audit", label: "Audit" },
+];
+
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await requireAdminSession();
   if (!session?.user?.email) redirect(`/signin?callbackUrl=${encodeURIComponent("/admin")}`);
+
   return (
-    <div style={{ maxWidth: 1100, margin: "24px auto", padding: "0 16px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+    <div className="mx-auto w-full max-w-6xl px-6 py-8">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-200 pb-5">
         <div>
-          <div style={{ fontWeight: 800, fontSize: 20 }}>Admin</div>
-          <div style={{ opacity: 0.8, fontSize: 13 }}>Signed in as {session.user.email}</div>
+          <div className="text-lg font-bold text-zinc-900">Admin</div>
+          <div className="text-xs text-zinc-400">Signed in as {session.user.email}</div>
         </div>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          <Link href="/dashboard">Dashboard</Link>
-          <Link href="/admin">Home</Link>
-          <Link href="/admin/inventory">Inventory</Link>
-          <Link href="/admin/invoices">Invoices</Link>
-          <Link href="/admin/analytics">Analytics</Link>
-          <Link href="/admin/users">Users</Link>
-          <Link href="/admin/audit">Audit</Link>
+        <div className="flex flex-wrap items-center gap-1">
+          {navLinks.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="rounded-lg px-3 py-1.5 text-sm text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900"
+            >
+              {link.label}
+            </Link>
+          ))}
           <AdminThemeToggle />
         </div>
       </div>
-      <hr style={{ margin: "16px 0" }} />
-      {children}
+
+      <div className="mt-6">{children}</div>
     </div>
   );
 }

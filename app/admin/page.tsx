@@ -11,13 +11,18 @@ const tools = [
 export default function AdminHome() {
   return (
     <main>
-      <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 8 }}>Admin Tools</h1>
-      <p style={{ opacity: 0.7, marginBottom: 28 }}>Manage your 5Star Media dashboard.</p>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
+      <h1 className="text-2xl font-bold text-zinc-900">Admin Tools</h1>
+      <p className="mt-2 text-sm text-zinc-500">Manage your 5Star Media dashboard.</p>
+
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {tools.map((t) => (
-          <Link key={t.href} href={t.href} style={{ padding: "16px 18px", border: "1px solid #e5e7eb", borderRadius: 10, textDecoration: "none", color: "inherit", display: "block" }}>
-            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{t.label}</div>
-            <div style={{ fontSize: 12, color: "#6b7280" }}>{t.desc}</div>
+          <Link
+            key={t.href}
+            href={t.href}
+            className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:border-zinc-300 hover:shadow-md"
+          >
+            <div className="text-base font-semibold text-zinc-900">{t.label}</div>
+            <div className="mt-1 text-sm text-zinc-500">{t.desc}</div>
           </Link>
         ))}
       </div>
