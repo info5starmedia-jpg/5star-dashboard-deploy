@@ -23,7 +23,7 @@ export async function middleware(req: NextRequest) {
   const token = await getToken({ req, secret });
 
   if (!token) {
-    const url = new URL("/api/auth/signin", req.url);
+    const url = new URL("/signin", req.url);
     url.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(url);
   }
@@ -34,9 +34,8 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/", req.url));
   }
 
-  if (isDashboardRoute(pathname) && !(tokenFlags.isAdmin || tokenFlags.isSubscriber)) {
-    return NextResponse.redirect(new URL("/billing", req.url));
-  }
+  // All authenticated users can access the dashboard (products + orders visible to everyone)
+  // Billing gate is only enforced for admin-only features if needed in the future
 
   return NextResponse.next();
 }

@@ -2,6 +2,7 @@ services:
   app:
     environment:
       - NEXT_DISABLE_FONT_OPTIMIZATION=1
+      - NEXTAUTH_URL_INTERNAL=http://localhost:3000
     build: .
     ports:
       - "127.0.0.1:3002:3000"
