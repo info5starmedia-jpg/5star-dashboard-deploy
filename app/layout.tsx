@@ -4,12 +4,9 @@ import { getServerSession } from "next-auth";
 
 import Providers from "./providers";
 import { authOptions } from "@/lib/auth";
+import { OWNER_EMAIL } from "@/lib/constants";
 import SignOutButton from "@/components/SignOutButton";
 import "./globals.css";
-
-// next/font/google downloads fonts at build time and requires outbound network
-// access during `npm run build`. To keep Docker builds reliable in restricted
-// environments we use the Tailwind system-font stack instead (no network call).
 
 export const metadata: Metadata = {
   title: "5star Dashboard",
@@ -22,31 +19,55 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const session = await getServerSession(authOptions);
+  const userEmail = session?.user?.email ?? null;
+  const role = (session?.user as { role?: string } | undefined)?.role ?? "user";
+  const isAdmin = role === "admin" || userEmail === OWNER_EMAIL;
 
   return (
     <html lang="en">
       <body className="min-h-screen bg-zinc-50 font-sans text-zinc-900 antialiased">
         <Providers>
           <div className="flex min-h-screen flex-col">
-            <header className="border-b border-zinc-200 bg-white">
+            <header className="border-b border-zinc-200 bg-white shadow-sm">
               <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
+                {/* Brand */}
                 <div className="flex items-center gap-6">
-                  <Link className="text-lg font-semibold" href="/">
+                  <Link className="text-lg font-bold text-zinc-900" href="/">
                     5star
                   </Link>
-                  <nav className="flex items-center gap-4 text-sm text-zinc-600">
-                    <Link className="hover:text-zinc-900" href="/">Home</Link>
-                    <Link className="hover:text-zinc-900" href="/dashboard">Dashboard</Link>
-                    <Link className="hover:text-zinc-900" href="/billing">Billing</Link>
-                  </nav>
+
+                  {/* Nav — only show when signed in */}
+                  {userEmail && (
+                    <nav className="flex items-center gap-1 text-sm">
+                      <Link
+                        className="rounded-md px-3 py-1.5 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition"
+                        href="/dashboard"
+                      >
+                        Dashboard
+                      </Link>
+                      <Link
+                        className="rounded-md px-3 py-1.5 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition"
+                        href="/billing"
+                      >
+                        Billing
+                      </Link>
+                      {isAdmin && (
+                        <Link
+                          className="rounded-md px-3 py-1.5 text-blue-600 hover:bg-blue-50 hover:text-blue-800 transition font-medium"
+                          href="/admin"
+                        >
+                          Admin
+                        </Link>
+                      )}
+                    </nav>
+                  )}
                 </div>
 
+                {/* Right side */}
                 <div className="flex items-center gap-3 text-sm">
-                  {session?.user ? (
+                  {userEmail ? (
                     <>
-                      <span className="hidden text-zinc-600 sm:inline">
-                        {session.user.email}
-                      </span>
+                      <span className="hidden text-zinc-500 sm:inline text-xs">{userEmail}</span>
                       <SignOutButton />
                     </>
                   ) : (

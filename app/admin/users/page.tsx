@@ -1,10 +1,41 @@
 "use client";
 import { useEffect, useState } from "react";
 
-type UserRow = { email: string; role: string; createdAt: string; lastLoginAt: string | null };
+type UserRow = {
+  email: string;
+  role: string;
+  createdAt: string;
+  lastLoginAt: string | null;
+  subscriptionStatus: string | null;
+  subscriptionEnd: string | null;
+};
 
 const fmtDate = (d: string | null) =>
-  d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
+  d
+    ? new Date(d).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "—";
+
+const SUB_BADGE: Record<string, string> = {
+  active:    "bg-green-50 text-green-700 border-green-200",
+  past_due:  "bg-amber-50 text-amber-700 border-amber-200",
+  canceled:  "bg-red-50 text-red-500 border-red-200",
+  cancelled: "bg-red-50 text-red-500 border-red-200",
+  trialing:  "bg-blue-50 text-blue-600 border-blue-200",
+};
+
+function SubBadge({ status }: { status: string | null }) {
+  if (!status) return <span className="text-zinc-400 text-xs">—</span>;
+  const cls = SUB_BADGE[status] ?? "bg-zinc-100 text-zinc-500 border-zinc-200";
+  return (
+    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${cls}`}>
+      {status}
+    </span>
+  );
+}
 
 export default function UsersPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
@@ -16,8 +47,14 @@ export default function UsersPage() {
   useEffect(() => {
     fetch("/api/admin/users")
       .then((r) => r.json())
-      .then((d) => { setUsers(d.users ?? []); setLoading(false); })
-      .catch(() => { setError("Failed to load users."); setLoading(false); });
+      .then((d) => {
+        setUsers(d.users ?? []);
+        setLoading(false);
+      })
+      .catch(() => {
+        setError("Failed to load users.");
+        setLoading(false);
+      });
   }, []);
 
   async function toggleRole(email: string, currentRole: string) {
@@ -30,61 +67,141 @@ export default function UsersPage() {
         body: JSON.stringify({ email, role: newRole }),
       });
       const body = await res.json().catch(() => ({}));
-      if (!res.ok) { alert(body.error || "Failed to update role."); return; }
-      setUsers((prev) => prev.map((u) => (u.email === email ? { ...u, role: body.user.role } : u)));
+      if (!res.ok) {
+        alert(body.error || "Failed to update role.");
+        return;
+      }
+      setUsers((prev) =>
+        prev.map((u) => (u.email === email ? { ...u, role: body.user.role } : u))
+      );
       setFlash(`${email} is now ${body.user.role}`);
       setTimeout(() => setFlash(""), 3000);
-    } catch { alert("Network error."); } finally { setBusy(null); }
+    } catch {
+      alert("Network error.");
+    } finally {
+      setBusy(null);
+    }
   }
 
   const admins = users.filter((u) => u.role === "admin").length;
-  if (loading) return <p style={{ color: "#6b7280" }}>Loading users...</p>;
-  if (error) return <p style={{ color: "#ef4444" }}>{error}</p>;
+  const activeSubscribers = users.filter((u) => u.subscriptionStatus === "active").length;
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-zinc-500 py-8">
+        <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-700" />
+        Loading users…
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+        {error}
+      </div>
+    );
+  }
 
   return (
-    <main>
-      <h1 style={{ fontSize: 26, fontWeight: 800, marginBottom: 4 }}>User Management</h1>
-      <p style={{ color: "#6b7280", marginBottom: 24 }}>{users.length} users — {admins} admin{admins !== 1 ? "s" : ""}</p>
+    <main className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-zinc-900">User Management</h1>
+        <p className="mt-1 text-sm text-zinc-500">
+          {users.length} users — {admins} admin{admins !== 1 ? "s" : ""} —{" "}
+          {activeSubscribers} active subscriber{activeSubscribers !== 1 ? "s" : ""}
+        </p>
+      </div>
+
       {flash && (
-        <div style={{ marginBottom: 16, padding: "10px 16px", background: "#dcfce7", border: "1px solid #86efac", borderRadius: 8, color: "#166534", fontSize: 13 }}>
+        <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
           {flash}
         </div>
       )}
-      <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-          <thead style={{ background: "#f9fafb" }}>
-            <tr>
-              {["Email", "Role", "Joined", "Last Login", "Actions"].map((h) => (
-                <th key={h} style={{ textAlign: "left", padding: "10px 16px", fontWeight: 600, color: "#374151", borderBottom: "1px solid #e5e7eb" }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((u, i) => (
-              <tr key={u.email} style={{ borderTop: i > 0 ? "1px solid #f3f4f6" : "none", background: u.role === "admin" ? "#eff6ff" : "white" }}>
-                <td style={{ padding: "10px 16px", fontWeight: u.role === "admin" ? 600 : 400 }}>{u.email}</td>
-                <td style={{ padding: "10px 16px" }}>
-                  <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 9999, fontSize: 11, fontWeight: 600, background: u.role === "admin" ? "#dbeafe" : "#f3f4f6", color: u.role === "admin" ? "#1d4ed8" : "#6b7280" }}>
-                    {u.role}
-                  </span>
-                </td>
-                <td style={{ padding: "10px 16px", color: "#6b7280" }}>{fmtDate(u.createdAt)}</td>
-                <td style={{ padding: "10px 16px", color: "#6b7280" }}>{fmtDate(u.lastLoginAt)}</td>
-                <td style={{ padding: "10px 16px" }}>
-                  <button
-                    disabled={busy === u.email}
-                    onClick={() => toggleRole(u.email, u.role)}
-                    style={{ padding: "4px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: busy === u.email ? "not-allowed" : "pointer", border: "1px solid", borderColor: u.role === "admin" ? "#fca5a5" : "#86efac", background: u.role === "admin" ? "#fee2e2" : "#dcfce7", color: u.role === "admin" ? "#dc2626" : "#16a34a", opacity: busy === u.email ? 0.6 : 1 }}
-                  >
-                    {busy === u.email ? "Saving..." : u.role === "admin" ? "Remove Admin" : "Make Admin"}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+
+      {/* Summary cards */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        {[
+          { label: "Total Users", value: users.length, color: "text-zinc-900" },
+          { label: "Admins", value: admins, color: "text-blue-700" },
+          { label: "Active Subscribers", value: activeSubscribers, color: "text-green-700" },
+        ].map((card) => (
+          <div
+            key={card.label}
+            className="rounded-xl border border-zinc-200 bg-white px-5 py-4 shadow-sm"
+          >
+            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+              {card.label}
+            </p>
+            <p className={`mt-1 text-3xl font-bold ${card.color}`}>{card.value}</p>
+          </div>
+        ))}
       </div>
-      <p style={{ marginTop: 16, fontSize: 12, color: "#9ca3af" }}>Role changes take effect on next sign-in.</p>
+
+      {/* Table */}
+      <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-sm">
+            <thead className="bg-zinc-50 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              <tr>
+                {["Email", "Role", "Subscription", "Expires", "Joined", "Last Login", "Actions"].map((h) => (
+                  <th key={h} className="border-b border-zinc-200 px-4 py-3 text-left">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-100">
+              {users.map((u) => (
+                <tr
+                  key={u.email}
+                  className={u.role === "admin" ? "bg-blue-50/40" : "hover:bg-zinc-50"}
+                >
+                  <td className={`px-4 py-3 font-medium ${u.role === "admin" ? "text-blue-900" : "text-zinc-900"}`}>
+                    {u.email}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
+                        u.role === "admin"
+                          ? "bg-blue-100 text-blue-800"
+                          : "bg-zinc-100 text-zinc-600"
+                      }`}
+                    >
+                      {u.role}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <SubBadge status={u.subscriptionStatus} />
+                  </td>
+                  <td className="px-4 py-3 text-zinc-500">{fmtDate(u.subscriptionEnd)}</td>
+                  <td className="px-4 py-3 text-zinc-500">{fmtDate(u.createdAt)}</td>
+                  <td className="px-4 py-3 text-zinc-500">{fmtDate(u.lastLoginAt)}</td>
+                  <td className="px-4 py-3">
+                    <button
+                      disabled={busy === u.email}
+                      onClick={() => toggleRole(u.email, u.role)}
+                      className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${
+                        u.role === "admin"
+                          ? "border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
+                          : "border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
+                      }`}
+                    >
+                      {busy === u.email
+                        ? "Saving…"
+                        : u.role === "admin"
+                        ? "Remove Admin"
+                        : "Make Admin"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <p className="text-xs text-zinc-400">Role changes take effect on next sign-in.</p>
     </main>
   );
 }

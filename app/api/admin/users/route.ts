@@ -25,12 +25,28 @@ export async function GET() {
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const users = await prisma.user.findMany({
-    orderBy: { createdAt: "desc" },
-    select: { email: true, role: true, createdAt: true, lastLoginAt: true },
+  const [users, subscriptions] = await Promise.all([
+    prisma.user.findMany({
+      orderBy: { createdAt: "desc" },
+      select: { email: true, role: true, createdAt: true, lastLoginAt: true },
+    }),
+    prisma.subscription.findMany({
+      select: { userEmail: true, status: true, currentPeriodEnd: true },
+    }),
+  ]);
+
+  const subMap = new Map(subscriptions.map((s) => [s.userEmail, s]));
+
+  const enriched = users.map((u) => {
+    const sub = subMap.get(u.email);
+    return {
+      ...u,
+      subscriptionStatus: sub?.status ?? null,
+      subscriptionEnd: sub?.currentPeriodEnd?.toISOString() ?? null,
+    };
   });
 
-  return NextResponse.json({ users });
+  return NextResponse.json({ users: enriched });
 }
 
 export async function PATCH(request: Request) {

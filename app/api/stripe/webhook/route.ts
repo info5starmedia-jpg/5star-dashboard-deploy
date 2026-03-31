@@ -2,12 +2,22 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
+import { sendDiscordAlert } from "@/lib/alerts";
 
 export const runtime = "nodejs";
 
-type SubscriptionPayload = Stripe.Subscription & {
+// Stripe v20 removed current_period_end and cancel_at_period_end from the
+// typed Subscription object. We define our own loose shape so we never do
+// unsafe property access on the typed object directly.
+type SubscriptionRaw = {
+  id: string;
+  status: string;
+  customer?: string | Stripe.Customer | Stripe.DeletedCustomer | null;
   customer_email?: string | null;
   current_period_end?: number | null;
+  cancel_at_period_end?: boolean | null;
+  items?: { data: Array<{ price?: { id: string } }> };
+  metadata?: Record<string, string>;
 };
 
 async function getRawBody(request: Request) {
@@ -18,7 +28,7 @@ function getSignature(request: Request) {
   return request.headers.get("stripe-signature") || "";
 }
 
-async function resolveUserEmailFromSubscription(sub: SubscriptionPayload): Promise<string | null> {
+async function resolveUserEmailFromSubscription(sub: SubscriptionRaw): Promise<string | null> {
   if (sub?.customer_email && typeof sub.customer_email === "string") return sub.customer_email;
   if (sub?.metadata?.userEmail) return sub.metadata.userEmail;
 
@@ -93,15 +103,20 @@ export async function POST(request: Request) {
 
         if (subscriptionId) {
           try {
-            const sub = await stripe.subscriptions.retrieve(subscriptionId);
+            const sub = await stripe.subscriptions.retrieve(subscriptionId) as unknown as SubscriptionRaw;
             status = sub.status;
             priceId = sub.items?.data?.[0]?.price?.id || priceId;
-            const periodEnd = (sub as unknown as Record<string, unknown>).current_period_end as number | null;
-            currentPeriodEnd = periodEnd ? new Date(periodEnd * 1000) : null;
-            cancelAtPeriodEnd = !!(sub as unknown as Record<string, unknown>).cancel_at_period_end;
+            currentPeriodEnd = typeof sub.current_period_end === "number"
+              ? new Date(sub.current_period_end * 1000) : null;
+            cancelAtPeriodEnd = !!sub.cancel_at_period_end;
           } catch {
             // Could not retrieve sub — fall back to "active" defaults
           }
+        }
+
+        // Discord alert on new checkout
+        if (userEmail) {
+          await sendDiscordAlert(`💳 Checkout completed — ${userEmail}`);
         }
 
         // Find existing row by userEmail or subscriptionId (handles race with
@@ -144,7 +159,7 @@ export async function POST(request: Request) {
       case "customer.subscription.created":
       case "customer.subscription.updated":
       case "customer.subscription.deleted": {
-        const sub = event.data.object as SubscriptionPayload;
+        const sub = event.data.object as unknown as SubscriptionRaw;
         const userEmail = await resolveUserEmailFromSubscription(sub);
         if (!userEmail) break;
 
@@ -157,10 +172,16 @@ export async function POST(request: Request) {
         const priceId =
           sub.items?.data?.[0]?.price?.id || process.env.STRIPE_PRICE_ID_MONTHLY || "";
         const status = sub.status || "unknown";
-        const subAny = sub as unknown as Record<string, unknown>;
-        const cancelAtPeriodEnd = !!subAny.cancel_at_period_end;
-        const cpe = subAny.current_period_end as number | undefined;
+        const cancelAtPeriodEnd = !!sub.cancel_at_period_end;
+        const cpe = sub.current_period_end;
         const currentPeriodEnd = typeof cpe === "number" ? new Date(cpe * 1000) : null;
+
+        // Discord alert for subscription lifecycle events
+        if (event.type === "customer.subscription.deleted") {
+          await sendDiscordAlert(`🚫 Subscription cancelled — ${userEmail}`);
+        } else if (event.type === "customer.subscription.created" && status === "active") {
+          await sendDiscordAlert(`✅ New subscription activated — ${userEmail}`);
+        }
 
         const existing = await prisma.subscription.findFirst({
           where: { stripeSubscriptionId: sub.id },
