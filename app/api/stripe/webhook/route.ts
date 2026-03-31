@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 import { sendDiscordAlert } from "@/lib/alerts";
+import { logAudit } from "@/lib/audit";
 
 export const runtime = "nodejs";
 
@@ -77,12 +78,76 @@ export async function POST(request: Request) {
         const session = event.data.object as Stripe.Checkout.Session;
         const userEmail =
           session?.metadata?.userEmail || session?.customer_details?.email || null;
+
+        if (!userEmail) break;
+
+        // ── Product purchase (one-time payment) ──────────────────────────────
+        if (session.metadata?.type === "product_purchase" && session.metadata?.sku) {
+          const { sku, itemName } = session.metadata;
+          const quantity = parseInt(session.metadata.quantity ?? "1", 10);
+
+          // Amount actually charged (after any promo code discount)
+          const amountTotal = session.amount_total ?? 0;
+          const unitPriceCents = quantity > 0 ? Math.round(amountTotal / quantity) : amountTotal;
+
+          await prisma.$transaction(async (tx) => {
+            const item = await tx.inventoryItem.findUnique({ where: { sku } });
+            if (!item || item.quantity < quantity) {
+              throw new Error(`Insufficient stock for ${sku}`);
+            }
+            await tx.inventoryItem.update({
+              where: { sku },
+              data: { quantity: { decrement: quantity } },
+            });
+            await tx.invoice.create({
+              data: {
+                createdByEmail: userEmail,
+                customerEmail: userEmail,
+                subtotalCents: amountTotal,
+                taxCents: 0,
+                totalCents: amountTotal,
+                status: "issued",
+                lineItems: {
+                  create: [
+                    {
+                      description: itemName ?? item.name,
+                      sku,
+                      quantity,
+                      unitPriceCents,
+                      totalCents: amountTotal,
+                    },
+                  ],
+                },
+              },
+            });
+          });
+
+          await logAudit({
+            actorEmail: userEmail,
+            action: "user_purchase",
+            targetEmail: userEmail,
+            ip: null,
+            userAgent: null,
+          });
+
+          const fmt = (c: number) =>
+            new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(c / 100);
+          await sendDiscordAlert(
+            `🛒 New order from **${userEmail}**\n` +
+            `• ${quantity}× ${itemName ?? sku}\n` +
+            `• Paid: ${fmt(amountTotal)}${amountTotal < quantity * parseInt(session.metadata.unitPriceCents ?? "0", 10) ? " (promo applied ✂️)" : ""}`
+          );
+          break;
+        }
+
+        // ── Subscription checkout ─────────────────────────────────────────────
         const customerId =
           typeof session?.customer === "string"
             ? session.customer
             : session?.customer && typeof session.customer === "object" && "id" in session.customer
               ? (session.customer as { id: string }).id
               : null;
+
         const subscriptionId =
           typeof session?.subscription === "string"
             ? session.subscription
@@ -92,10 +157,8 @@ export async function POST(request: Request) {
               ? (session.subscription as { id: string }).id
               : null;
 
-        if (!userEmail || !customerId) break;
+        if (!customerId) break;
 
-        // Fetch the real subscription from Stripe so we activate immediately
-        // instead of leaving status as "pending".
         let status = "active";
         let priceId = process.env.STRIPE_PRICE_ID_MONTHLY || "";
         let currentPeriodEnd: Date | null = null;
@@ -110,17 +173,12 @@ export async function POST(request: Request) {
               ? new Date(sub.current_period_end * 1000) : null;
             cancelAtPeriodEnd = !!sub.cancel_at_period_end;
           } catch {
-            // Could not retrieve sub — fall back to "active" defaults
+            // fall back to "active" defaults
           }
         }
 
-        // Discord alert on new checkout
-        if (userEmail) {
-          await sendDiscordAlert(`💳 Checkout completed — ${userEmail}`);
-        }
+        await sendDiscordAlert(`💳 New subscription checkout — ${userEmail}`);
 
-        // Find existing row by userEmail or subscriptionId (handles race with
-        // customer.subscription.created arriving before this event)
         const existing = await prisma.subscription.findFirst({
           where: subscriptionId
             ? { OR: [{ userEmail }, { stripeSubscriptionId: subscriptionId }] }
