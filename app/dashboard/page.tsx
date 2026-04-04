@@ -1,15 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 
-type Product = {
-  id: string;
+// ── Types ──────────────────────────────────────────────────────────────────────
+type PlanCard = {
+  slug: string;
   name: string;
-  sku: string;
+  description: string;
   priceCents: number;
-  quantity: number;
+  packSize: number | null;
+  badge: string | null;
+  features: string[];
+  available: boolean;
+  poolQuantity: number | null;
 };
 
 type OrderLineItem = {
@@ -19,14 +24,13 @@ type OrderLineItem = {
   quantity: number;
   unitPriceCents: number;
   totalCents: number;
+  deliveredContent: string | null;
 };
 
 type Order = {
   id: string;
   createdAt: string;
   totalCents: number;
-  subtotalCents: number;
-  taxCents: number;
   status: string;
   lineItems: OrderLineItem[];
 };
@@ -34,168 +38,185 @@ type Order = {
 const fmt = (cents: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 
+// ── Spinner ────────────────────────────────────────────────────────────────────
 function Spinner({ size = "sm" }: { size?: "sm" | "lg" }) {
   const cls =
     size === "lg"
-      ? "h-6 w-6 border-2 border-zinc-200 border-t-zinc-700"
-      : "h-4 w-4 border-2 border-zinc-300 border-t-zinc-700";
+      ? "h-6 w-6 border-2 border-orange-400/30 border-t-orange-400"
+      : "h-4 w-4 border-2 border-orange-400/30 border-t-orange-400";
   return <span className={`inline-block animate-spin rounded-full ${cls}`} />;
 }
 
-// ── Buy Modal (Stripe redirect) ───────────────────────────────────────────────
-function BuyModal({
-  product,
-  onClose,
+// ── Server Plan Card ───────────────────────────────────────────────────────────
+function ServerPlanCard({
+  plan,
+  onSubscribe,
+  busy,
 }: {
-  product: Product;
-  onClose: () => void;
+  plan: PlanCard;
+  onSubscribe: (slug: string) => void;
+  busy: string | null;
 }) {
-  const [qty, setQty] = useState(1);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const maxQty = product.quantity;
-  const totalCents = product.priceCents * qty;
-
-  useEffect(() => {
-    inputRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  async function handleCheckout() {
-    if (qty < 1 || qty > maxQty) return;
-    setError(null);
-    setBusy(true);
-    try {
-      const res = await fetch("/api/user/checkout", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ sku: product.sku, quantity: qty }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Could not start checkout");
-      if (!data.url) throw new Error("No checkout URL returned");
-      // Redirect to Stripe — promo codes available there
-      window.location.href = data.url;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Checkout failed");
-      setBusy(false);
-    }
-  }
+  const isBusy = busy === plan.slug;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      className={`relative flex flex-col rounded-2xl border p-6 shadow-sm transition ${
+        plan.available
+          ? "border-orange-400/50 bg-zinc-900 hover:border-orange-400"
+          : "border-zinc-700 bg-zinc-900/50 opacity-60"
+      }`}
     >
-      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
-        <h2 className="text-lg font-bold text-zinc-900">Buy {product.name}</h2>
-        <p className="mt-0.5 text-xs font-mono text-zinc-400">{product.sku}</p>
-
-        <div className="mt-5 space-y-4">
-          {/* Quantity stepper */}
-          <div>
-            <label className="mb-1 block text-sm font-medium text-zinc-700">
-              Quantity{" "}
-              <span className="font-normal text-zinc-400">({maxQty} available)</span>
-            </label>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setQty((q) => Math.max(1, q - 1))}
-                disabled={qty <= 1 || busy}
-                className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 text-lg font-medium hover:bg-zinc-50 disabled:opacity-40"
-              >
-                −
-              </button>
-              <input
-                ref={inputRef}
-                type="number"
-                min={1}
-                max={maxQty}
-                value={qty}
-                onChange={(e) => {
-                  const v = Math.max(1, Math.min(maxQty, Math.floor(Number(e.target.value) || 1)));
-                  setQty(v);
-                }}
-                disabled={busy}
-                className="w-20 rounded-lg border border-zinc-200 px-3 py-2 text-center text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-zinc-300"
-              />
-              <button
-                type="button"
-                onClick={() => setQty((q) => Math.min(maxQty, q + 1))}
-                disabled={qty >= maxQty || busy}
-                className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 text-lg font-medium hover:bg-zinc-50 disabled:opacity-40"
-              >
-                +
-              </button>
-            </div>
-          </div>
-
-          {/* Price breakdown */}
-          <div className="space-y-1 rounded-xl border border-zinc-100 bg-zinc-50 px-4 py-3 text-sm">
-            <div className="flex justify-between text-zinc-500">
-              <span>Unit price</span>
-              <span>{fmt(product.priceCents)}</span>
-            </div>
-            <div className="flex justify-between text-zinc-500">
-              <span>Quantity</span>
-              <span>× {qty}</span>
-            </div>
-            <div className="flex justify-between border-t border-zinc-200 pt-1 font-bold text-zinc-900">
-              <span>Total</span>
-              <span>{fmt(totalCents)}</span>
-            </div>
-            <p className="pt-1 text-xs text-zinc-400">
-              🏷️ Promo / coupon codes can be applied on the next screen
-            </p>
-          </div>
-
-          {error && (
-            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {error}
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="flex gap-3 pt-1">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={busy}
-              className="flex-1 rounded-xl border border-zinc-200 py-2.5 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleCheckout}
-              disabled={busy || qty < 1 || qty > maxQty}
-              className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-zinc-900 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-50"
-            >
-              {busy ? (
-                <><Spinner /> Redirecting…</>
-              ) : (
-                `Pay ${fmt(totalCents)} →`
-              )}
-            </button>
-          </div>
-        </div>
+      {plan.badge && plan.available && (
+        <span className="absolute -top-3 left-5 rounded-full bg-orange-500 px-3 py-0.5 text-xs font-bold text-black">
+          {plan.badge}
+        </span>
+      )}
+      <div className="mb-4">
+        <p className="text-xs font-bold uppercase tracking-widest text-orange-400">Server</p>
+        <h3 className="mt-1 text-lg font-extrabold text-orange-400">{plan.name}</h3>
+        <p className="mt-1 text-sm font-semibold text-orange-300">{plan.description}</p>
       </div>
+      <div className="mb-4">
+        <span className="text-3xl font-extrabold text-orange-400">{fmt(plan.priceCents)}</span>
+        <span className="ml-1 text-sm font-semibold text-orange-300">/month</span>
+      </div>
+      <ul className="mb-6 space-y-1.5 text-sm font-semibold text-orange-300">
+        {plan.features.map((feat, i) => (
+          <li key={i}>✅ {feat}</li>
+        ))}
+      </ul>
+      <button
+        onClick={() => plan.available && onSubscribe(plan.slug)}
+        disabled={!plan.available || busy !== null}
+        className={`mt-auto w-full rounded-xl py-3 text-sm font-bold transition ${
+          plan.available
+            ? "bg-orange-500 text-black hover:bg-orange-400 disabled:opacity-60"
+            : "cursor-not-allowed bg-zinc-700 text-zinc-500"
+        }`}
+      >
+        {isBusy ? (
+          <span className="flex items-center justify-center gap-2">
+            <Spinner /> Redirecting…
+          </span>
+        ) : plan.available ? (
+          `Subscribe — ${fmt(plan.priceCents)}/mo`
+        ) : (
+          "Out of Stock"
+        )}
+      </button>
     </div>
   );
 }
 
-// ── Success / Cancelled Banners ────────────────────────────────────────────────
-function PurchaseBanner({
-  type,
-  onDismiss,
+// ── ISP Proxy Card (single card with quantity dropdown) ────────────────────────
+const ISP_QUANTITIES = [10, 25, 50, 75] as const;
+type IspQty = (typeof ISP_QUANTITIES)[number];
+
+function ISPProxyCard({
+  ispPlans,
+  onSubscribe,
+  busy,
 }: {
-  type: "success" | "cancelled";
-  onDismiss: () => void;
+  ispPlans: PlanCard[];
+  onSubscribe: (slug: string) => void;
+  busy: string | null;
 }) {
+  const [selectedQty, setSelectedQty] = useState<IspQty>(10);
+
+  const selectedPlan = useMemo(
+    () => ispPlans.find((p) => p.packSize === selectedQty) ?? null,
+    [ispPlans, selectedQty]
+  );
+
+  const isAvailable = selectedPlan?.available ?? false;
+  const isBusy = busy === selectedPlan?.slug;
+
+  return (
+    <div className="relative flex flex-col rounded-2xl border border-orange-400/50 bg-zinc-900 p-6 shadow-sm transition hover:border-orange-400">
+      {/* Header */}
+      <div className="mb-4">
+        <p className="text-xs font-bold uppercase tracking-widest text-orange-400">ISP Proxies</p>
+        <h3 className="mt-1 text-lg font-extrabold text-orange-400">Viking USA ISP</h3>
+        <p className="mt-1 text-sm font-semibold text-orange-300">
+          Premium USA ISP proxies — yours for the life of your subscription.
+        </p>
+      </div>
+
+      {/* Quantity dropdown */}
+      <div className="mb-4">
+        <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-orange-400">
+          Quantity
+        </label>
+        <select
+          value={selectedQty}
+          onChange={(e) => setSelectedQty(Number(e.target.value) as IspQty)}
+          className="w-full rounded-lg border border-orange-400/40 bg-zinc-800 px-3 py-2.5 text-sm font-semibold text-orange-300 focus:border-orange-400 focus:outline-none"
+        >
+          {ISP_QUANTITIES.map((qty) => {
+            const plan = ispPlans.find((p) => p.packSize === qty);
+            return (
+              <option key={qty} value={qty}>
+                {qty} Proxies{plan ? ` — ${fmt(plan.priceCents)}/mo` : ""}
+              </option>
+            );
+          })}
+        </select>
+      </div>
+
+      {/* Price */}
+      {selectedPlan && (
+        <div className="mb-4">
+          <span className="text-3xl font-extrabold text-orange-400">
+            {fmt(selectedPlan.priceCents)}
+          </span>
+          <span className="ml-1 text-sm font-semibold text-orange-300">/month</span>
+        </div>
+      )}
+
+      {/* Features */}
+      <ul className="mb-6 space-y-1.5 text-sm font-semibold text-orange-300">
+        <li>✅ {selectedQty} dedicated USA ISP proxies</li>
+        <li>✅ Yours for the life of subscription</li>
+        <li>✅ High-speed residential IPs</li>
+        <li>✅ Cancel anytime</li>
+      </ul>
+
+      {/* Stock indicator */}
+      <div className="mb-4 rounded-lg border border-orange-400/20 bg-zinc-800 px-3 py-2">
+        {isAvailable ? (
+          <p className="text-xs font-bold text-emerald-400">✅ In stock — fulfillment ready</p>
+        ) : (
+          <p className="text-xs font-bold text-red-400">❌ Currently out of stock</p>
+        )}
+      </div>
+
+      {/* Subscribe button */}
+      <button
+        onClick={() => selectedPlan && isAvailable && onSubscribe(selectedPlan.slug)}
+        disabled={!isAvailable || !selectedPlan || busy !== null}
+        className={`mt-auto w-full rounded-xl py-3 text-sm font-bold transition ${
+          isAvailable && selectedPlan
+            ? "bg-orange-500 text-black hover:bg-orange-400 disabled:opacity-60"
+            : "cursor-not-allowed bg-zinc-700 text-zinc-500"
+        }`}
+      >
+        {isBusy ? (
+          <span className="flex items-center justify-center gap-2">
+            <Spinner /> Redirecting…
+          </span>
+        ) : isAvailable && selectedPlan ? (
+          `Subscribe — ${fmt(selectedPlan.priceCents)}/mo`
+        ) : (
+          "Out of Stock"
+        )}
+      </button>
+    </div>
+  );
+}
+
+// ── Purchase Result Banner ─────────────────────────────────────────────────────
+function PurchaseBanner({ type, onDismiss }: { type: "success" | "cancelled"; onDismiss: () => void }) {
   useEffect(() => {
     const t = setTimeout(onDismiss, 8000);
     return () => clearTimeout(t);
@@ -203,66 +224,22 @@ function PurchaseBanner({
 
   if (type === "cancelled") {
     return (
-      <div className="flex items-center justify-between gap-4 rounded-2xl border border-zinc-200 bg-zinc-50 px-5 py-4 shadow-sm">
-        <p className="text-sm text-zinc-600">Checkout was cancelled — no charge made.</p>
-        <button onClick={onDismiss} className="text-zinc-400 hover:text-zinc-600 text-lg">×</button>
+      <div className="flex items-center justify-between gap-4 rounded-2xl border border-orange-400/30 bg-zinc-900 px-5 py-4 shadow-sm">
+        <p className="text-sm font-semibold text-orange-300">Checkout was cancelled — no charge made.</p>
+        <button onClick={onDismiss} className="text-xl font-bold text-orange-400 hover:text-orange-300">×</button>
       </div>
     );
   }
 
   return (
-    <div className="flex items-start justify-between gap-4 rounded-2xl border border-green-200 bg-green-50 px-5 py-4 shadow-sm">
+    <div className="flex items-start justify-between gap-4 rounded-2xl border border-emerald-500/40 bg-emerald-900/30 px-5 py-4 shadow-sm">
       <div>
-        <p className="text-sm font-semibold text-green-900">
-          ✅ Payment confirmed — thank you!
-        </p>
-        <p className="mt-0.5 text-xs text-green-700">
-          Your order is being processed. It will appear in <strong>My Orders</strong> shortly.
+        <p className="text-sm font-bold text-emerald-400">✅ Subscription confirmed — thank you!</p>
+        <p className="mt-0.5 text-xs font-semibold text-emerald-300">
+          Your ISP lines will appear in <strong>My Orders</strong> shortly.
         </p>
       </div>
-      <button onClick={onDismiss} className="shrink-0 text-green-500 hover:text-green-700 text-lg">×</button>
-    </div>
-  );
-}
-
-// ── Product Card ───────────────────────────────────────────────────────────────
-function ProductCard({ product, onBuy }: { product: Product; onBuy: (p: Product) => void }) {
-  const inStock = product.quantity > 0;
-  const lowStock = inStock && product.quantity <= 5;
-
-  return (
-    <div className="flex flex-col rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <h3 className="truncate font-semibold text-zinc-900">{product.name}</h3>
-          <p className="mt-0.5 font-mono text-xs text-zinc-400">{product.sku}</p>
-        </div>
-        <span
-          className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium ${
-            !inStock
-              ? "border-zinc-200 bg-zinc-100 text-zinc-400"
-              : lowStock
-              ? "border-amber-200 bg-amber-50 text-amber-700"
-              : "border-green-200 bg-green-50 text-green-700"
-          }`}
-        >
-          {!inStock ? "Out of stock" : lowStock ? `Only ${product.quantity} left` : `${product.quantity} in stock`}
-        </span>
-      </div>
-
-      <div className="mt-4 flex items-end justify-between gap-2">
-        <p className="text-2xl font-bold text-zinc-900">{fmt(product.priceCents)}</p>
-        <p className="text-xs text-zinc-400">per unit</p>
-      </div>
-
-      <button
-        type="button"
-        disabled={!inStock}
-        onClick={() => onBuy(product)}
-        className="mt-4 w-full rounded-xl bg-zinc-900 py-2.5 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        {inStock ? "Buy Now" : "Out of Stock"}
-      </button>
+      <button onClick={onDismiss} className="shrink-0 text-xl font-bold text-emerald-400 hover:text-emerald-300">×</button>
     </div>
   );
 }
@@ -273,41 +250,48 @@ function OrderCard({ order }: { order: Order }) {
   const shortId = order.id.slice(-8).toUpperCase();
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-2xl border border-orange-400/30 bg-zinc-900 shadow-sm">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between px-5 py-4 text-left transition hover:bg-zinc-50"
+        className="flex w-full items-center justify-between px-5 py-4 text-left transition hover:bg-zinc-800"
       >
         <div>
-          <p className="font-mono text-sm font-semibold text-zinc-800">Order #{shortId}</p>
-          <p className="mt-0.5 text-xs text-zinc-400">
+          <p className="font-mono text-sm font-bold text-orange-400">Order #{shortId}</p>
+          <p className="mt-0.5 text-xs font-semibold text-orange-300">
             {new Date(order.createdAt).toLocaleDateString("en-US", {
-              month: "long",
-              day: "numeric",
-              year: "numeric",
+              month: "long", day: "numeric", year: "numeric",
             })}
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-lg font-bold text-zinc-900">{fmt(order.totalCents)}</span>
-          <span className="text-sm text-zinc-400">{open ? "▲" : "▼"}</span>
+          <span className="text-lg font-extrabold text-orange-400">{fmt(order.totalCents)}</span>
+          <span className="text-sm font-bold text-orange-300">{open ? "▲" : "▼"}</span>
         </div>
       </button>
 
       {open && (
-        <div className="space-y-2 border-t border-zinc-100 px-5 py-4">
+        <div className="space-y-3 border-t border-orange-400/20 px-5 py-4">
           {order.lineItems.map((item) => (
-            <div key={item.id} className="flex justify-between text-sm">
-              <span className="text-zinc-700">
-                {item.description}
-                {item.sku && <span className="ml-1 font-mono text-xs text-zinc-400">[{item.sku}]</span>}
-                <span className="ml-2 text-zinc-400">× {item.quantity}</span>
-              </span>
-              <span className="font-medium text-zinc-900">{fmt(item.totalCents)}</span>
+            <div key={item.id}>
+              <div className="flex justify-between text-sm">
+                <span className="font-semibold text-orange-300">
+                  {item.description}
+                  <span className="ml-2 text-orange-300/60">× {item.quantity}</span>
+                </span>
+                <span className="font-bold text-orange-400">{fmt(item.totalCents)}</span>
+              </div>
+              {item.deliveredContent && (
+                <div className="mt-2 rounded-lg border border-blue-500/40 bg-blue-900/30 p-3">
+                  <p className="mb-1.5 text-xs font-bold text-blue-400">Your ISP lines</p>
+                  <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all font-mono text-xs text-blue-300">
+                    {item.deliveredContent}
+                  </pre>
+                </div>
+              )}
             </div>
           ))}
-          <div className="flex justify-between border-t border-zinc-100 pt-2 text-sm font-bold text-zinc-900">
+          <div className="flex justify-between border-t border-orange-400/20 pt-2 text-sm font-extrabold text-orange-400">
             <span>Total</span>
             <span>{fmt(order.totalCents)}</span>
           </div>
@@ -321,34 +305,36 @@ function OrderCard({ order }: { order: Order }) {
 export default function DashboardPage() {
   const { data: session, status } = useSession();
   const searchParams = useSearchParams();
-  const purchaseResult = searchParams.get("purchase") as "success" | "cancelled" | null;
+  const purchaseResult = searchParams.get("checkout") as "success" | "cancelled" | null;
 
-  const [products, setProducts] = useState<Product[]>([]);
+  const [plans, setPlans] = useState<PlanCard[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [loadingProducts, setLoadingProducts] = useState(true);
+  const [loadingPlans, setLoadingPlans] = useState(true);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [activeTab, setActiveTab] = useState<"products" | "orders">(
     purchaseResult === "success" ? "orders" : "products"
   );
-  const [buyTarget, setBuyTarget] = useState<Product | null>(null);
+  const [subscribeBusy, setSubscribeBusy] = useState<string | null>(null);
+  const [subscribeError, setSubscribeError] = useState<string | null>(null);
   const [banner, setBanner] = useState<"success" | "cancelled" | null>(purchaseResult);
 
-  // Clean ?purchase= from URL without reload
+  // Clean query params from URL
   useEffect(() => {
     if (purchaseResult) {
       const url = new URL(window.location.href);
-      url.searchParams.delete("purchase");
+      url.searchParams.delete("checkout");
       url.searchParams.delete("session_id");
       window.history.replaceState({}, "", url.toString());
     }
   }, [purchaseResult]);
 
-  const loadProducts = useCallback(() => {
-    setLoadingProducts(true);
+  const loadPlans = useCallback(() => {
+    setLoadingPlans(true);
     fetch("/api/user/products")
       .then((r) => r.json())
-      .then((d) => setProducts(d.products ?? []))
-      .finally(() => setLoadingProducts(false));
+      .then((d) => setPlans(d.plans ?? []))
+      .catch(() => setPlans([]))
+      .finally(() => setLoadingPlans(false));
   }, []);
 
   const loadOrders = useCallback(() => {
@@ -356,26 +342,44 @@ export default function DashboardPage() {
     fetch("/api/user/orders")
       .then((r) => r.json())
       .then((d) => setOrders(d.orders ?? []))
+      .catch(() => setOrders([]))
       .finally(() => setLoadingOrders(false));
   }, []);
 
   useEffect(() => {
     if (status === "unauthenticated") { window.location.href = "/signin"; return; }
     if (status !== "authenticated") return;
-    loadProducts();
+    loadPlans();
     loadOrders();
-    // If returning from successful purchase, also poll for the order a couple times
-    // since the webhook may take a few seconds
     if (purchaseResult === "success") {
       const t1 = setTimeout(loadOrders, 3000);
       const t2 = setTimeout(loadOrders, 7000);
       return () => { clearTimeout(t1); clearTimeout(t2); };
     }
-  }, [status, loadProducts, loadOrders, purchaseResult]);
+  }, [status, loadPlans, loadOrders, purchaseResult]);
+
+  async function handleSubscribe(planSlug: string) {
+    setSubscribeError(null);
+    setSubscribeBusy(planSlug);
+    try {
+      const res = await fetch("/api/stripe/create-checkout-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planSlug }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || `Error ${res.status}`);
+      if (!data.url) throw new Error("No checkout URL returned");
+      window.location.href = data.url;
+    } catch (err) {
+      setSubscribeError(err instanceof Error ? err.message : "Checkout failed");
+      setSubscribeBusy(null);
+    }
+  }
 
   if (status === "loading") {
     return (
-      <div className="flex h-64 items-center justify-center gap-2 text-sm text-zinc-500">
+      <div className="flex h-64 items-center justify-center gap-2 text-sm font-bold text-orange-400">
         <Spinner size="lg" /> Loading…
       </div>
     );
@@ -385,125 +389,139 @@ export default function DashboardPage() {
 
   const email = session.user?.email ?? "";
   const role = (session.user as { role?: string })?.role ?? "user";
-  const totalSpent = orders.reduce((s, o) => s + o.totalCents, 0);
   const totalItems = orders.reduce(
     (s, o) => s + o.lineItems.reduce((ls, li) => ls + li.quantity, 0),
     0
   );
 
   return (
-    <>
-      {buyTarget && (
-        <BuyModal product={buyTarget} onClose={() => setBuyTarget(null)} />
-      )}
+    <div className="mx-auto w-full max-w-5xl space-y-6 px-6 py-10">
 
-      <div className="mx-auto w-full max-w-5xl space-y-6 px-6 py-10">
-        {/* Header */}
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Dashboard</p>
-          <h1 className="text-3xl font-bold text-zinc-900">Welcome back</h1>
-          <p className="mt-1 text-sm text-zinc-500">
-            {email}
-            {role === "admin" && (
-              <span className="ml-2 inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
-                admin
-              </span>
-            )}
-          </p>
-        </div>
+      {/* Header */}
+      <div>
+        <p className="text-xs font-bold uppercase tracking-wide text-orange-400">Dashboard</p>
+        <h1 className="text-3xl font-extrabold text-orange-400">Welcome back</h1>
+        <p className="mt-1 text-sm font-bold text-orange-300">
+          {email}
+          {role === "admin" && (
+            <span className="ml-2 inline-flex items-center rounded-full bg-orange-500/20 px-2 py-0.5 text-xs font-bold text-orange-400">
+              admin
+            </span>
+          )}
+        </p>
+      </div>
 
-        {/* Purchase result banner */}
-        {banner && (
-          <PurchaseBanner type={banner} onDismiss={() => setBanner(null)} />
-        )}
+      {/* Purchase result banner */}
+      {banner && <PurchaseBanner type={banner} onDismiss={() => setBanner(null)} />}
 
-        {/* Summary cards */}
-        <div className="grid gap-4 sm:grid-cols-3">
-          {[
-            { label: "Total Orders", value: orders.length },
-            { label: "Total Spent", value: fmt(totalSpent) },
-            { label: "Items Purchased", value: totalItems },
-          ].map((c) => (
-            <div key={c.label} className="rounded-xl border border-zinc-200 bg-white px-5 py-4 shadow-sm">
-              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">{c.label}</p>
-              <p className="mt-1 text-3xl font-bold text-zinc-900">{c.value}</p>
-            </div>
+      {/* Summary cards */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        {[
+          { label: "Total Orders", value: orders.length },
+          { label: "Items Purchased", value: totalItems },
+        ].map((c) => (
+          <div key={c.label} className="rounded-xl border border-orange-400/30 bg-zinc-900 px-5 py-4 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-wide text-orange-400">{c.label}</p>
+            <p className="mt-1 text-3xl font-extrabold text-orange-400">{c.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Tabs */}
+      <div className="border-b border-orange-400/30">
+        <div className="flex">
+          {(["products", "orders"] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`border-b-2 px-5 py-3 text-sm font-bold transition ${
+                activeTab === tab
+                  ? "border-orange-400 text-orange-400"
+                  : "border-transparent text-orange-300/60 hover:text-orange-400"
+              }`}
+            >
+              {tab === "products"
+                ? "Products"
+                : `My Orders${orders.length > 0 ? ` (${orders.length})` : ""}`}
+            </button>
           ))}
         </div>
-
-        {/* Tabs */}
-        <div className="border-b border-zinc-200">
-          <div className="flex">
-            {(["products", "orders"] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`border-b-2 px-5 py-3 text-sm font-medium transition ${
-                  activeTab === tab
-                    ? "border-zinc-900 text-zinc-900"
-                    : "border-transparent text-zinc-500 hover:text-zinc-700"
-                }`}
-              >
-                {tab === "products"
-                  ? `Products${products.length > 0 ? ` (${products.length})` : ""}`
-                  : `My Orders${orders.length > 0 ? ` (${orders.length})` : ""}`}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Products tab */}
-        {activeTab === "products" && (
-          <>
-            {loadingProducts ? (
-              <div className="flex items-center gap-2 py-8 text-sm text-zinc-500">
-                <Spinner /> Loading products…
-              </div>
-            ) : products.length === 0 ? (
-              <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-12 text-center shadow-sm">
-                <p className="text-sm text-zinc-400">No products available right now.</p>
-              </div>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {products.map((p) => (
-                  <ProductCard key={p.id} product={p} onBuy={setBuyTarget} />
-                ))}
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Orders tab */}
-        {activeTab === "orders" && (
-          <>
-            {loadingOrders ? (
-              <div className="flex items-center gap-2 py-8 text-sm text-zinc-500">
-                <Spinner /> Loading orders…
-              </div>
-            ) : orders.length === 0 ? (
-              <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-12 text-center shadow-sm">
-                <p className="text-sm text-zinc-400">
-                  {purchaseResult === "success"
-                    ? "Your order is being processed — check back in a moment."
-                    : "No orders yet."}
-                </p>
-                <button
-                  onClick={() => setActiveTab("products")}
-                  className="mt-3 text-sm font-medium text-zinc-700 underline"
-                >
-                  Browse products
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {orders.map((o) => (
-                  <OrderCard key={o.id} order={o} />
-                ))}
-              </div>
-            )}
-          </>
-        )}
       </div>
-    </>
+
+      {/* Products tab */}
+      {activeTab === "products" && (
+        <>
+          {loadingPlans ? (
+            <div className="flex items-center gap-2 py-8 text-sm font-semibold text-orange-400">
+              <Spinner /> Loading products…
+            </div>
+          ) : (
+            <>
+              {subscribeError && (
+                <div className="rounded-xl border border-red-500/40 bg-red-900/30 px-4 py-3 text-sm font-semibold text-red-400">
+                  {subscribeError}
+                </div>
+              )}
+              <div className="grid gap-5 sm:grid-cols-2">
+                {/* Server plan(s) */}
+                {plans
+                  .filter((p) => p.packSize === null)
+                  .map((plan) => (
+                    <ServerPlanCard
+                      key={plan.slug}
+                      plan={plan}
+                      onSubscribe={handleSubscribe}
+                      busy={subscribeBusy}
+                    />
+                  ))}
+                {/* ISP proxies — single card with quantity dropdown */}
+                {plans.some((p) => p.packSize !== null) && (
+                  <ISPProxyCard
+                    ispPlans={plans.filter((p) => p.packSize !== null)}
+                    onSubscribe={handleSubscribe}
+                    busy={subscribeBusy}
+                  />
+                )}
+              </div>
+              <p className="mt-2 text-xs font-semibold text-orange-300/60">
+                All plans are monthly recurring subscriptions. Cancel anytime from your{" "}
+                <a href="/billing" className="underline text-orange-400">Billing page</a>.
+              </p>
+            </>
+          )}
+        </>
+      )}
+
+      {/* Orders tab */}
+      {activeTab === "orders" && (
+        <>
+          {loadingOrders ? (
+            <div className="flex items-center gap-2 py-8 text-sm font-semibold text-orange-400">
+              <Spinner /> Loading orders…
+            </div>
+          ) : orders.length === 0 ? (
+            <div className="rounded-2xl border border-orange-400/30 bg-zinc-900 px-6 py-12 text-center shadow-sm">
+              <p className="text-sm font-semibold text-orange-300">
+                {purchaseResult === "success"
+                  ? "Your order is being processed — check back in a moment."
+                  : "No orders yet."}
+              </p>
+              <button
+                onClick={() => setActiveTab("products")}
+                className="mt-3 text-sm font-bold text-orange-400 underline"
+              >
+                Browse products
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {orders.map((o) => (
+                <OrderCard key={o.id} order={o} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
   );
 }
