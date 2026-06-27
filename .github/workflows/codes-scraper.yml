@@ -1,0 +1,59 @@
+name: codes-scraper
+
+# Runs on demand (click "Run workflow" in the Actions tab). A scheduled trigger
+# is included but commented out — uncomment to have it run automatically.
+on:
+  workflow_dispatch:
+  # schedule:
+  #   - cron: "17 13 * * *"   # daily ~13:17 UTC; adjust or remove as you like
+
+permissions:
+  contents: write
+
+concurrency:
+  group: codes-scraper
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: codes-bot
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Stability self-test (gate)
+        run: node selftest.mjs
+
+      - name: Scrape codes
+        run: node src/index.mjs
+        env:
+          GMAIL_ACCOUNTS: ${{ secrets.GMAIL_ACCOUNTS }}
+          SENDERS: ${{ secrets.SENDERS }}
+          AYCD_INBOX_TOKEN: ${{ secrets.AYCD_INBOX_TOKEN }}
+          AYCD_INBOX_BASE_URL: ${{ secrets.AYCD_INBOX_BASE_URL }}
+          AYCD_INBOX_MAIL_PATH: ${{ secrets.AYCD_INBOX_MAIL_PATH }}
+          SHEET_ID: ${{ secrets.SHEET_ID }}
+          SHEET_TAB: ${{ secrets.SHEET_TAB }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          LOOKBACK_DAYS: ${{ secrets.LOOKBACK_DAYS }}
+
+      - name: Commit ledger backup if changed
+        run: |
+          git config user.name "codes-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/
+          if git diff --staged --quiet; then
+            echo "No new codes — nothing to commit."
+          else
+            git commit -m "codes-bot: update ledger [skip ci]"
+            git push
+          fi
