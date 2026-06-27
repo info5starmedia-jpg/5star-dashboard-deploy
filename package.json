@@ -8,6 +8,10 @@
     "start": "node scripts/start.js",
     "backup:db": "node scripts/backup-db.js",
     "export:db": "node scripts/export-db.js",
+    "seated:parse": "node scripts/seated/parse.mjs",
+    "seated:sheet": "node scripts/seated/build-sheet.mjs",
+    "seated:sync": "node scripts/seated/sync.mjs",
+    "seated:selftest": "node scripts/seated/selftest.mjs",
     "lint": "eslint",
     "start:next": "next start"
   },
