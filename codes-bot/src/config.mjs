@@ -39,7 +39,7 @@ export function loadConfig(env = process.env) {
 
   const aycd = {
     token: clean(env.AYCD_INBOX_TOKEN),
-    baseUrl: clean(env.AYCD_INBOX_BASE_URL) || "https://api.useinbox.com",
+    baseUrl: clean(env.AYCD_INBOX_BASE_URL) || "https://useapi.useinbox.com",
     // Endpoint that returns recently captured mail/codes. Overridable because
     // AYCD's exact path is confirmed at wiring time against your account.
     mailPath: clean(env.AYCD_INBOX_MAIL_PATH) || "/v1/mail",

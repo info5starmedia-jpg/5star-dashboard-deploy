@@ -13,7 +13,7 @@
 export async function fetchFromAycd(aycd, opts = {}) {
   if (!aycd?.token) return [];
 
-  const base = (aycd.baseUrl || "https://api.useinbox.com").replace(/\/+$/, "");
+  const base = (aycd.baseUrl || "https://useapi.useinbox.com").replace(/\/+$/, "");
   const url = `${base}${aycd.mailPath || "/v1/mail"}`;
 
   const res = await fetch(url, {
