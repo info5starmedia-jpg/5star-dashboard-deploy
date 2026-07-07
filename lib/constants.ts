@@ -9,6 +9,46 @@ export const OWNER_EMAIL =
 // Pack availability is determined by pool.quantity >= packSize.
 export const ISP_POOL_SKU = "isp-pool";
 
+// ── Inventory "Add Item" categories ──────────────────────────────────────────
+// Powers the category dropdown on /admin/inventory so the admin never has to
+// remember or retype a SKU. Two kinds of category:
+//
+//   - Pooled (sku set):    one canonical SKU, reused every time. Picking it
+//     pre-fills Name + SKU; if that SKU already has stock, the form adds to
+//     its quantity instead of creating a duplicate row (matches how the ISP
+//     proxy pool already works).
+//   - Freeform (sku null): every add is a distinct new item (e.g. one-off
+//     digital products), so the SKU is suggested from the name instead of
+//     fixed, and stays editable.
+export type InventoryCategoryKey =
+  | "server"
+  | "isp_proxies"
+  | "ipv4_proxies"
+  | "subnets"
+  | "digital_product"
+  | "other";
+
+export type InventoryCategory = {
+  key: InventoryCategoryKey;
+  label: string;
+  sku: string | null; // null = freeform, unique SKU per item
+  defaultName: string;
+  hasSubtitle: boolean;
+};
+
+export const INVENTORY_CATEGORIES: InventoryCategory[] = [
+  { key: "server", label: "Viking Servers", sku: "server-pool", defaultName: "Viking Server", hasSubtitle: false },
+  { key: "isp_proxies", label: "Viking USA ISP Proxies", sku: ISP_POOL_SKU, defaultName: "Viking USA ISP Proxies", hasSubtitle: false },
+  { key: "ipv4_proxies", label: "IPv4 Proxies", sku: "ipv4-pool", defaultName: "IPv4 Proxies", hasSubtitle: false },
+  { key: "subnets", label: "Subnets", sku: "subnet-pool", defaultName: "Subnets", hasSubtitle: false },
+  { key: "digital_product", label: "Digital Product", sku: null, defaultName: "", hasSubtitle: true },
+  { key: "other", label: "Other / Custom", sku: null, defaultName: "", hasSubtitle: false },
+];
+
+export function getInventoryCategory(key: string): InventoryCategory {
+  return INVENTORY_CATEGORIES.find((c) => c.key === key) ?? INVENTORY_CATEGORIES[0];
+}
+
 // ── Recurring subscription plans ─────────────────────────────────────────────
 // TWO logical products:
 //   1. HUSCARL 32X64 Server  — dedicated server access

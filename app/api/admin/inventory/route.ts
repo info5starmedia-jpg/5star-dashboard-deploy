@@ -18,6 +18,7 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => ({}));
   const name = String(body?.name || "").trim();
+  const subtitle = String(body?.subtitle || "").trim();
   const sku = String(body?.sku || "").trim();
   const quantity = Math.floor(Number(body?.quantity ?? 0));
   const priceCents = Math.floor(Number(body?.priceCents ?? 0));
@@ -39,7 +40,7 @@ export async function POST(req: Request) {
   }
 
   const item = await prisma.inventoryItem.create({
-    data: { name, sku, quantity, priceCents, costCents },
+    data: { name, subtitle: subtitle || null, sku, quantity, priceCents, costCents },
   });
 
   await logAudit({

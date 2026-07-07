@@ -22,6 +22,11 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     updates.name = name;
     changes.push(`name: "${existing.name}" → "${name}"`);
   }
+  if (body.subtitle !== undefined) {
+    const subtitle = String(body.subtitle).trim();
+    updates.subtitle = subtitle || null;
+    changes.push(`subtitle: "${existing.subtitle ?? ""}" → "${subtitle}"`);
+  }
   if (body.quantity !== undefined) {
     const quantity = Math.floor(Number(body.quantity));
     if (!Number.isFinite(quantity) || quantity < 0) {

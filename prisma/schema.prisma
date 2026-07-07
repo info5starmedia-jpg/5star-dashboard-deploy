@@ -54,6 +54,7 @@ model StripeEvent {
 model InventoryItem {
   id         String   @id @default(cuid())
   name       String
+  subtitle   String?
   sku        String   @unique
   quantity   Int
   priceCents Int
