@@ -10,7 +10,12 @@ const isAdminRoute = (p: string) => p.startsWith("/admin") || p.startsWith("/api
 const isDashboardRoute = (p: string) => p.startsWith("/dashboard");
 const isBillingRoute = (p: string) => p.startsWith("/billing");
 
-export async function middleware(req: NextRequest) {
+// Renamed from middleware() to proxy() for the Next.js 16 file convention.
+// Behavior is unchanged; this now runs on the nodejs runtime instead of edge.
+// Note: this is only the first of three auth layers — admin layouts and every
+// /api/admin route independently re-verify the session, so a proxy-level bypass
+// cannot by itself reach admin data.
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   if (pathname.startsWith("/api/stripe/webhook")) return NextResponse.next();
