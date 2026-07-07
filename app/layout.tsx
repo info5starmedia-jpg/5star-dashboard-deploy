@@ -4,7 +4,6 @@ import { getServerSession } from "next-auth";
 
 import Providers from "./providers";
 import { authOptions } from "@/lib/auth";
-import { OWNER_EMAIL } from "@/lib/constants";
 import SignOutButton from "@/components/SignOutButton";
 import "./globals.css";
 
@@ -20,8 +19,9 @@ export default async function RootLayout({
 }) {
   const session = await getServerSession(authOptions);
   const userEmail = session?.user?.email ?? null;
-  const role = (session?.user as { role?: string } | undefined)?.role ?? "user";
-  const isAdmin = role === "admin" || userEmail === OWNER_EMAIL;
+  // isAdmin is baked into the session by lib/auth.ts (env-based check) — the
+  // DB `role` field is informational only and never lands in the session.
+  const isAdmin = Boolean(session?.user?.isAdmin);
 
   return (
     <html lang="en">

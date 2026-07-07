@@ -65,11 +65,16 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Owner role cannot be changed" }, { status: 400 });
   }
 
-  const updated = await prisma.user.update({
-    where: { email },
-    data: { role },
-    select: { email: true, role: true, createdAt: true, lastLoginAt: true },
-  });
+  let updated;
+  try {
+    updated = await prisma.user.update({
+      where: { email },
+      data: { role },
+      select: { email: true, role: true, createdAt: true, lastLoginAt: true },
+    });
+  } catch {
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
 
   const meta = getMeta(request);
   await logAudit({

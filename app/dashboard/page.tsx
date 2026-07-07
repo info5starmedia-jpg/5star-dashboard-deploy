@@ -388,7 +388,7 @@ export default function DashboardPage() {
   if (!session) return null;
 
   const email = session.user?.email ?? "";
-  const role = (session.user as { role?: string })?.role ?? "user";
+  const isAdminUser = Boolean((session.user as { isAdmin?: boolean })?.isAdmin);
   const totalItems = orders.reduce(
     (s, o) => s + o.lineItems.reduce((ls, li) => ls + li.quantity, 0),
     0
@@ -403,7 +403,7 @@ export default function DashboardPage() {
         <h1 className="text-3xl font-extrabold text-orange-400">Welcome back</h1>
         <p className="mt-1 text-sm font-bold text-orange-300">
           {email}
-          {role === "admin" && (
+          {isAdminUser && (
             <span className="ml-2 inline-flex items-center rounded-full bg-orange-500/20 px-2 py-0.5 text-xs font-bold text-orange-400">
               admin
             </span>

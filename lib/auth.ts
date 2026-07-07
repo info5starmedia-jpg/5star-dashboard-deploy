@@ -16,6 +16,11 @@ type TokenFlags = {
   currentPeriodEnd?: Date | string | null;
 };
 
+// Secure cookies whenever the public URL is HTTPS. The container talks to
+// itself over plain HTTP (NEXTAUTH_URL_INTERNAL), but the browser only ever
+// sees the HTTPS origin, so the OAuth state/PKCE cookies must be Secure there.
+const useSecureCookies = envClean("NEXTAUTH_URL").startsWith("https://");
+
 export const authOptions: NextAuthOptions = {
   secret: envClean("NEXTAUTH_SECRET") || envClean("AUTH_SECRET"),
   session: { strategy: "jwt" },
@@ -23,11 +28,11 @@ export const authOptions: NextAuthOptions = {
   cookies: {
     state: {
       name: "next-auth.state",
-      options: { httpOnly: true, sameSite: "lax", path: "/", secure: false },
+      options: { httpOnly: true, sameSite: "lax", path: "/", secure: useSecureCookies },
     },
     pkceCodeVerifier: {
       name: "next-auth.pkce.code_verifier",
-      options: { httpOnly: true, sameSite: "lax", path: "/", secure: false },
+      options: { httpOnly: true, sameSite: "lax", path: "/", secure: useSecureCookies },
     },
   },
 

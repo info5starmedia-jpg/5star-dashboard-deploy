@@ -298,6 +298,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ received: true });
   } catch (error: unknown) {
+    // Release the idempotency claim: the event was recorded BEFORE processing,
+    // so without this a failed handler makes Stripe's retry hit the duplicate
+    // guard and the event is never processed (charged but unfulfilled).
+    await prisma.stripeEvent.delete({ where: { id: event.id } }).catch(() => {});
     const message = error instanceof Error ? error.message : "Webhook handler failed";
     return NextResponse.json({ error: message }, { status: 500 });
   }
