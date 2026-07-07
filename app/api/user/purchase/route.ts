@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireAdminSession } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
 import { sendDiscordAlert } from "@/lib/alerts";
 import { logAudit } from "@/lib/audit";
 
+// Admin-only for now: this creates an "issued" invoice and decrements stock
+// with NO payment collected. It predates the Stripe product-purchase flow
+// (see the webhook's `product_purchase` handling, which fulfills only after
+// Stripe confirms payment) and was never wired to a customer-facing button.
+// Left in as an admin tool for manual/comp orders; do not open this to
+// regular users without putting a real payment step in front of it.
 function getMeta(request: Request) {
   return {
     ip: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
@@ -20,9 +25,9 @@ function formatMoney(cents: number) {
 }
 
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions);
+  const session = await requireAdminSession();
   if (!session?.user?.email) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const userEmail = session.user.email;
