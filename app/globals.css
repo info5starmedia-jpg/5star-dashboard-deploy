@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Wire Tailwind's dark: prefix to the data-admin-theme attribute */
+@custom-variant dark (&:where([data-admin-theme="dark"], [data-admin-theme="dark"] *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;

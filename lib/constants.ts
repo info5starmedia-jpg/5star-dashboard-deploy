@@ -3,11 +3,13 @@ export const OWNER_EMAIL =
   (process.env.OWNER_EMAIL || "").replace(/^["']|["']$/g, "").trim() ||
   "info.5starmedia@gmail.com";
 
-// ── ISP shared pool SKU ───────────────────────────────────────────────────────
-// Admin adds ONE inventory item with this SKU and pastes all ISP lines into
-// the Content field. The quantity auto-sets to the number of lines.
-// Pack availability is determined by pool.quantity >= packSize.
-export const ISP_POOL_SKU = "isp-pool";
+// ── Inventory pool SKUs ────────────────────────────────────────────────────────
+// Admin loads lines into ONE inventory item per pool and pastes all lines into
+// the Content field. The quantity auto-sets to the number of lines. Pack
+// availability is determined by pool.quantity >= packSize.
+export const ISP_POOL_SKU = "isp-pool1";     // All ISP pack tiers share this pool
+export const SERVER_SKU   = "viking_server"; // VIKING HELGER SERVER lines
+export const ACC_SKU      = "viking_acc";    // VIKING HYBRID RETAIL ACC lines
 
 // ── Inventory "Add Item" categories ──────────────────────────────────────────
 // Powers the category dropdown on /admin/inventory so the admin never has to
@@ -22,6 +24,7 @@ export const ISP_POOL_SKU = "isp-pool";
 //     fixed, and stays editable.
 export type InventoryCategoryKey =
   | "server"
+  | "viking_acc"
   | "isp_proxies"
   | "ipv4_proxies"
   | "subnets"
@@ -37,8 +40,9 @@ export type InventoryCategory = {
 };
 
 export const INVENTORY_CATEGORIES: InventoryCategory[] = [
-  { key: "server", label: "Viking Servers", sku: "server-pool", defaultName: "Viking Server", hasSubtitle: false },
-  { key: "isp_proxies", label: "Viking USA ISP Proxies", sku: ISP_POOL_SKU, defaultName: "Viking USA ISP Proxies", hasSubtitle: false },
+  { key: "server", label: "Viking Servers", sku: SERVER_SKU, defaultName: "VIKING HELGER SERVER", hasSubtitle: false },
+  { key: "viking_acc", label: "Viking Hybrid Retail Acc", sku: ACC_SKU, defaultName: "VIKING HYBRID RETAIL ACC", hasSubtitle: false },
+  { key: "isp_proxies", label: "Viking USA ISP Proxies", sku: ISP_POOL_SKU, defaultName: "HUSCARL USA ISP Proxies", hasSubtitle: false },
   { key: "ipv4_proxies", label: "IPv4 Proxies", sku: "ipv4-pool", defaultName: "IPv4 Proxies", hasSubtitle: false },
   { key: "subnets", label: "Subnets", sku: "subnet-pool", defaultName: "Subnets", hasSubtitle: false },
   { key: "digital_product", label: "Digital Product", sku: null, defaultName: "", hasSubtitle: true },
@@ -50,105 +54,141 @@ export function getInventoryCategory(key: string): InventoryCategory {
 }
 
 // ── Recurring subscription plans ─────────────────────────────────────────────
-// TWO logical products:
-//   1. HUSCARL 32X64 Server  — dedicated server access
-//   2. Viking USA ISP        — shared ISP pool, multiple pack sizes
+// Logical products:
+//   1. VIKING HELGER SERVER      — dedicated server access
+//   2. VIKING HYBRID RETAIL ACC  — one-time hybrid retail account
+//   3. HUSCARL USA ISP           — shared ISP pool, multiple pack sizes
 //
 // Each ISP pack size is a different Stripe Price under the same logical product.
-// Admin loads lines into ONE inventory item (SKU: isp-pool). Dashboard checks
-// pool.quantity >= packSize to enable/disable each pack tier.
+// Admin loads lines into ONE inventory item per pool (see inventorySku below).
+// Dashboard checks pool.quantity >= packSize to enable/disable each pack tier.
 
-export type PlanSlug = "server" | "isp_10" | "isp_25" | "isp_50" | "isp_75";
+export type PlanSlug =
+  | "server"
+  | "viking_acc"
+  | "isp_10"
+  | "isp_25"
+  | "isp_50"
+  | "isp_75";
 
 export type Plan = {
   slug: PlanSlug;
   name: string;
   description: string;
-  priceCents: number;        // monthly price in cents
-  packSize: number | null;   // null = server (no ISP lines), number = lines per cycle
+  priceCents: number;        // price in cents
+  packSize: number;          // lines drawn from the inventory pool per cycle
+  inventorySku: string;      // which inventory pool SKU this plan draws from
   stripeProductId: string;   // prod_xxx from Stripe dashboard
   envKey: string;            // env var name holding the Stripe Price ID (price_xxx)
   badge?: string;
   features: string[];        // customer-facing feature bullets
+  oneTime?: boolean;         // true = one-time purchase (not a subscription)
 };
 
 export const PLANS: Plan[] = [
   {
     slug: "server",
-    name: "HUSCARL 32X64 Server",
+    name: "VIKING HELGER SERVER",
     description: "Full dedicated server access. Renewed monthly.",
-    priceCents: 12000,         // $120.00
-    packSize: null,
-    stripeProductId: "prod_UGiw1Mtaeeb30W",
+    priceCents: 12000,
+    packSize: 1,
+    inventorySku: SERVER_SKU,
+    stripeProductId: "prod_UHAdq1BkXKxWen",
     envKey: "STRIPE_PRICE_ID_SERVER",
     features: [
-      "Full dedicated server access",
-      "32 cores / 64 threads",
-      "High-speed bandwidth",
-      "Monthly recurring",
-      "Cancel anytime",
+      "32 Thread CPU",
+      "64GB RAM",
+      "SSD 480GB",
+      "10GB Uplink",
+      "Virginia, USA",
+      "Premium Tier",
+    ],
+  },
+  {
+    slug: "viking_acc",
+    name: "VIKING HYBRID RETAIL ACC",
+    description: "Premium hybrid retail account. One-time purchase.",
+    priceCents: 1000,
+    packSize: 1,
+    inventorySku: ACC_SKU,
+    stripeProductId: "",
+    envKey: "STRIPE_PRICE_ID_VIKING_ACC",
+    oneTime: true,
+    features: [
+      "Premium hybrid retail account",
+      "High-performance access",
+      "One-time purchase",
+      "Instant Delivery",
     ],
   },
   {
     slug: "isp_10",
-    name: "Viking USA ISP -- 10 Pack",
+    name: "HUSCARL USA ISP -- 10 Pack",
     description: "10 premium USA ISP proxies delivered on subscription.",
-    priceCents: 3000,          // $30.00
+    priceCents: 3000,
     packSize: 10,
-    stripeProductId: "prod_UGjuCI2sd4MLzW",
+    inventorySku: ISP_POOL_SKU,
+    stripeProductId: "prod_UH8iAH5xWEsbFz",
     envKey: "STRIPE_PRICE_ID_ISP_10",
     features: [
-      "10 dedicated USA ISP proxies",
-      "Yours for the life of subscription",
-      "High-speed residential IPs",
-      "Cancel anytime",
+      "Private datacenter / USA",
+      "Ashburn, VA",
+      "10GB/s Network Speed",
+      "Unlocked 24/7",
+      "Instant Delivery",
     ],
   },
   {
     slug: "isp_25",
-    name: "Viking USA ISP -- 25 Pack",
+    name: "HUSCARL USA ISP -- 25 Pack",
     description: "25 premium USA ISP proxies delivered on subscription.",
-    priceCents: 7500,          // $75.00
+    priceCents: 7500,
     packSize: 25,
-    stripeProductId: "prod_UGjxFpoI4Jak1B",
+    inventorySku: ISP_POOL_SKU,
+    stripeProductId: "prod_UH8p0QG8naGuCc",
     envKey: "STRIPE_PRICE_ID_ISP_25",
     badge: "Popular",
     features: [
-      "25 dedicated USA ISP proxies",
-      "Yours for the life of subscription",
-      "High-speed residential IPs",
-      "Cancel anytime",
+      "Private datacenter / USA",
+      "Ashburn, VA",
+      "10GB/s Network Speed",
+      "Unlocked 24/7",
+      "Instant Delivery",
     ],
   },
   {
     slug: "isp_50",
-    name: "Viking USA ISP -- 50 Pack",
+    name: "HUSCARL USA ISP -- 50 Pack",
     description: "50 premium USA ISP proxies delivered on subscription.",
-    priceCents: 15000,         // $150.00
+    priceCents: 15000,
     packSize: 50,
-    stripeProductId: "prod_UGk2QE7Z4tGPbE",
+    inventorySku: ISP_POOL_SKU,
+    stripeProductId: "prod_UH8uy4dviKUzHb",
     envKey: "STRIPE_PRICE_ID_ISP_50",
     badge: "Best Value",
     features: [
-      "50 dedicated USA ISP proxies",
-      "Yours for the life of subscription",
-      "High-speed residential IPs",
-      "Cancel anytime",
+      "Private datacenter / USA",
+      "Ashburn, VA",
+      "10GB/s Network Speed",
+      "Unlocked 24/7",
+      "Instant Delivery",
     ],
   },
   {
     slug: "isp_75",
-    name: "Viking USA ISP -- 75 Pack",
+    name: "HUSCARL USA ISP -- 75 Pack",
     description: "75 premium USA ISP proxies delivered on subscription.",
-    priceCents: 22500,         // $225.00
+    priceCents: 22500,
     packSize: 75,
-    stripeProductId: "",       // Set in Stripe dashboard — add prod_xxx here
+    inventorySku: ISP_POOL_SKU,
+    stripeProductId: "",
     envKey: "STRIPE_PRICE_ID_ISP_75",
     features: [
-      "75 dedicated USA ISP proxies",
-      "Yours for the life of subscription",
-      "High-speed residential IPs",
-      "Cancel anytime",
+      "Private datacenter / USA",
+      "Ashburn, VA",
+      "10GB/s Network Speed",
+      "Unlocked 24/7",
+      "Instant Delivery",
     ],
   },
 ];

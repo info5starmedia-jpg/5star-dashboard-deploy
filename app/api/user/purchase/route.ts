@@ -64,10 +64,27 @@ export async function POST(request: Request) {
       const unitPriceCents = item.priceCents;
       const totalCents = unitPriceCents * quantity;
 
-      // Decrement stock
+      // If item has content (e.g. proxy lines), take N lines from the pool
+      let deliveredContent: string | null = null;
+      let remainingContent: string | null = item.content;
+      if (item.content) {
+        const allLines = item.content.split("\n").filter((l: string) => l.trim());
+        if (allLines.length < quantity) {
+          throw new Error(`Only ${allLines.length} items available in pool — you requested ${quantity}`);
+        }
+        const taken = allLines.slice(0, quantity);
+        const remaining = allLines.slice(quantity);
+        deliveredContent = taken.join("\n");
+        remainingContent = remaining.length > 0 ? remaining.join("\n") : null;
+      }
+
+      // Decrement stock + update content pool
       await tx.inventoryItem.update({
         where: { sku },
-        data: { quantity: { decrement: quantity } },
+        data: {
+          quantity: { decrement: quantity },
+          ...(item.content !== null ? { content: remainingContent } : {}),
+        },
       });
 
       // Create invoice under customer's email
@@ -87,6 +104,7 @@ export async function POST(request: Request) {
                 quantity,
                 unitPriceCents,
                 totalCents,
+                deliveredContent,
               },
             ],
           },

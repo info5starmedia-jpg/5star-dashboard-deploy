@@ -164,26 +164,26 @@ export default function BillingPage() {
 
   return (
     <main className="mx-auto w-full max-w-lg px-6 py-16">
-      <h1 className="text-2xl font-bold text-zinc-900">Billing</h1>
-      <p className="mt-1 text-sm text-zinc-500">Manage your subscription and payment details.</p>
+      <h1 className="text-3xl font-extrabold text-orange-400">Billing</h1>
+      <p className="mt-1 text-base font-semibold text-orange-300">Manage your subscription and payment details.</p>
 
       <div className="mt-8 space-y-4">
         {/* Account card */}
-        <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-          <div className="flex items-center gap-3 border-b border-zinc-100 pb-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-100 text-sm font-bold text-zinc-600">
+        <div className="rounded-2xl border border-orange-400/30 bg-zinc-900 p-6 shadow-sm">
+          <div className="flex items-center gap-3 border-b border-orange-400/20 pb-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-500/20 text-sm font-bold text-orange-400">
               {email[0]?.toUpperCase()}
             </div>
             <div>
-              <p className="text-sm font-semibold text-zinc-900">{email}</p>
-              <p className="text-xs text-zinc-400">Signed in</p>
+              <p className="text-sm font-bold text-orange-400">{email}</p>
+              <p className="text-xs font-semibold text-orange-300">Signed in</p>
             </div>
           </div>
 
           {/* Subscription status */}
           <div className="mt-5">
             {subLoading ? (
-              <div className="flex items-center gap-2 text-sm text-zinc-400">
+              <div className="flex items-center gap-2 text-sm font-semibold text-orange-400">
                 <Spinner /> Checking subscription…
               </div>
             ) : sub && statusInfo ? (
@@ -199,7 +199,7 @@ export default function BillingPage() {
 
                 {/* Period info */}
                 {sub.currentPeriodEnd && (
-                  <p className="text-xs text-zinc-400">
+                  <p className="text-xs font-semibold text-orange-300">
                     {sub.cancelAtPeriodEnd
                       ? `Access ends on ${fmtDate(sub.currentPeriodEnd)}`
                       : isActive
@@ -256,9 +256,9 @@ export default function BillingPage() {
             ) : (
               /* No subscription yet */
               <div className="space-y-4">
-                <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-4">
-                  <p className="text-sm font-medium text-zinc-700">No active subscription</p>
-                  <p className="mt-1 text-xs text-zinc-400">
+                <div className="rounded-xl border border-orange-400/30 bg-zinc-800 px-4 py-4">
+                  <p className="text-sm font-bold text-orange-400">No active subscription</p>
+                  <p className="mt-1 text-xs font-semibold text-orange-300">
                     Subscribe to get full access to all products and features.
                   </p>
                 </div>
@@ -287,7 +287,7 @@ export default function BillingPage() {
         <div className="text-center">
           <Link
             href="/dashboard"
-            className="text-sm text-zinc-400 transition hover:text-zinc-700"
+            className="text-sm font-bold text-orange-400 transition hover:text-orange-300"
           >
             ← Back to dashboard
           </Link>

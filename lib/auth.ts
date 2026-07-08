@@ -11,6 +11,7 @@ function envClean(key: string): string {
 
 type TokenFlags = {
   isAdmin?: boolean;
+  isPromoter?: boolean;
   isSubscriber?: boolean;
   subscriptionStatus?: string | null;
   currentPeriodEnd?: Date | string | null;
@@ -69,8 +70,22 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token }) {
       const email = token?.email ? String(token.email) : "";
       const tokenFlags = token as typeof token & TokenFlags;
+
       if (email) {
-        tokenFlags.isAdmin = isAdminEmail(email);
+        // Always read role from DB so changes take effect on next token refresh
+        let dbRole: string | null = null;
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { email: email.toLowerCase() },
+            select: { role: true },
+          });
+          dbRole = dbUser?.role ?? null;
+        } catch {
+          // best-effort — fall back to env-based check only
+        }
+
+        tokenFlags.isAdmin = isAdminEmail(email) || dbRole === "admin";
+        tokenFlags.isPromoter = dbRole === "promoter";
 
         try {
           const ent = await getEntitlementsByEmail(email);
@@ -84,6 +99,7 @@ export const authOptions: NextAuthOptions = {
         }
       } else {
         tokenFlags.isAdmin = false;
+        tokenFlags.isPromoter = false;
         tokenFlags.isSubscriber = false;
         tokenFlags.subscriptionStatus = null;
         tokenFlags.currentPeriodEnd = null;
@@ -96,6 +112,7 @@ export const authOptions: NextAuthOptions = {
         const user = session.user as typeof session.user & TokenFlags;
         const tokenFlags = token as typeof token & TokenFlags;
         user.isAdmin = !!tokenFlags.isAdmin;
+        user.isPromoter = !!tokenFlags.isPromoter;
         user.isSubscriber = !!tokenFlags.isSubscriber;
         user.subscriptionStatus = tokenFlags.subscriptionStatus ?? null;
         user.currentPeriodEnd = tokenFlags.currentPeriodEnd ?? null;

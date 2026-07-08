@@ -41,7 +41,7 @@ export default function AdminThemeToggle() {
   return (
     <button
       type="button"
-      className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+      className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
       onClick={() => setEnabled((prev) => !prev)}
     >
       {mounted ? (enabled ? "Dark mode: On" : "Dark mode: Off") : "Dark mode"}

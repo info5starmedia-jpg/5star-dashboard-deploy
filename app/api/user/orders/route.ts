@@ -30,6 +30,7 @@ export async function GET() {
           quantity: true,
           unitPriceCents: true,
           totalCents: true,
+          deliveredContent: true,
         },
       },
     },

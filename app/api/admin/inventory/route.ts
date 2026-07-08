@@ -20,9 +20,14 @@ export async function POST(req: Request) {
   const name = String(body?.name || "").trim();
   const subtitle = String(body?.subtitle || "").trim();
   const sku = String(body?.sku || "").trim();
-  const quantity = Math.floor(Number(body?.quantity ?? 0));
   const priceCents = Math.floor(Number(body?.priceCents ?? 0));
   const costCents = Math.floor(Number(body?.costCents ?? 0));
+  const rawContent = typeof body?.content === "string" ? body.content.trim() : "";
+
+  // If content is provided (e.g. proxy lines), auto-calculate quantity from line count
+  const contentLines = rawContent ? rawContent.split("\n").filter((l: string) => l.trim()) : [];
+  const content = contentLines.length > 0 ? contentLines.join("\n") : null;
+  const quantity = content ? contentLines.length : Math.floor(Number(body?.quantity ?? 0));
 
   if (!name || !sku) {
     return NextResponse.json({ error: "Missing name or sku" }, { status: 400 });
@@ -40,7 +45,7 @@ export async function POST(req: Request) {
   }
 
   const item = await prisma.inventoryItem.create({
-    data: { name, subtitle: subtitle || null, sku, quantity, priceCents, costCents },
+    data: { name, subtitle: subtitle || null, sku, quantity, priceCents, costCents, content },
   });
 
   await logAudit({
