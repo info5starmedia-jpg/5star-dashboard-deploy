@@ -29,7 +29,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <Providers>
           <div className="flex min-h-screen flex-col">
             <header className="border-b border-orange-300 bg-orange-100 shadow-sm">
-              <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
+              <div className="mx-auto flex w-full max-w-[1600px] items-center justify-between px-6 py-4">
                 <div className="flex items-center gap-6">
                   <Link className="text-xl font-extrabold text-black tracking-tight" href="/">
                     Viking Essentials

@@ -12,7 +12,7 @@ const sections = [
 
 export default function KnowledgeBaseLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mx-auto w-full max-w-6xl px-6 py-10">
+    <div className="mx-auto w-full max-w-[1600px] px-6 py-10">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold">Knowledge Base</h1>
         <p className="mt-1 text-sm text-zinc-600">

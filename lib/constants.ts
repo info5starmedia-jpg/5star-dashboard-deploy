@@ -45,8 +45,8 @@ export const INVENTORY_CATEGORIES: InventoryCategory[] = [
   { key: "isp_proxies", label: "Viking USA ISP Proxies", sku: ISP_POOL_SKU, defaultName: "HUSCARL USA ISP Proxies", hasSubtitle: false },
   { key: "ipv4_proxies", label: "IPv4 Proxies", sku: "ipv4-pool", defaultName: "IPv4 Proxies", hasSubtitle: false },
   { key: "subnets", label: "Subnets", sku: "subnet-pool", defaultName: "Subnets", hasSubtitle: false },
-  { key: "digital_product", label: "Digital Product", sku: null, defaultName: "", hasSubtitle: true },
-  { key: "other", label: "Other / Custom", sku: null, defaultName: "", hasSubtitle: false },
+  { key: "digital_product", label: "Digital Product", sku: null, defaultName: "Digital Product", hasSubtitle: true },
+  { key: "other", label: "Other / Custom", sku: null, defaultName: "Custom Product", hasSubtitle: false },
 ];
 
 export function getInventoryCategory(key: string): InventoryCategory {

@@ -69,7 +69,7 @@ export default function PromoPage() {
   const totalRevenue = codes.reduce((s, c) => s + c.totalRevenueCents, 0);
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-6 px-6 py-10">
+    <div className="mx-auto w-full max-w-6xl space-y-6 px-6 py-10">
       <div>
         <p className="text-xs font-bold uppercase tracking-wide text-orange-400">Promoter Dashboard</p>
         <h1 className="text-3xl font-extrabold text-orange-400">My Promo Codes</h1>

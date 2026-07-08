@@ -19,7 +19,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!session?.user?.email) redirect(`/signin?callbackUrl=${encodeURIComponent("/admin")}`);
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-6 py-8">
+    <div className="mx-auto w-full max-w-[1600px] px-6 py-8">
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-200 pb-5 dark:border-zinc-700">
         <div>
           <div className="text-xl font-extrabold text-orange-400 tracking-tight">Admin</div>

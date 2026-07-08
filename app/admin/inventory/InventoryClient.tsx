@@ -87,8 +87,11 @@ export default function InventoryClient() {
     setSkuTouched(false);
     setQuantity("1");
     if (!category.sku) {
-      setName("");
-      setSku("");
+      // Freeform (digital product / custom): seed an editable name + SKU so a
+      // SKU is always visible; the admin can tweak either for a unique item.
+      const seed = category.defaultName;
+      setName(seed);
+      setSku(seed ? slugify(seed) : "");
       setSubtitle("");
       setPriceInput("");
       setCostInput("");
@@ -266,38 +269,56 @@ export default function InventoryClient() {
       {/* Add Item */}
       <div className="rounded-2xl border border-orange-400/30 bg-zinc-900 p-6 shadow-sm">
         <h3 className="text-lg font-bold text-orange-400">Add Item</h3>
-        <div className="mt-4 grid gap-3 sm:grid-cols-6">
-          <select
-            value={categoryKey}
-            onChange={(e) => setCategoryKey(e.target.value)}
-            className={INPUT_CLASS}
-          >
-            {INVENTORY_CATEGORIES.map((c) => (
-              <option key={c.key} value={c.key}>{c.label}</option>
-            ))}
-          </select>
+        <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-bold uppercase tracking-wide text-orange-300/80">Category</label>
+            <select value={categoryKey} onChange={(e) => setCategoryKey(e.target.value)} className={INPUT_CLASS}>
+              {INVENTORY_CATEGORIES.map((c) => (
+                <option key={c.key} value={c.key}>{c.label}</option>
+              ))}
+            </select>
+          </div>
 
-          <input placeholder="Name" value={name} onChange={(e) => handleNameChange(e.target.value)}
-            className={INPUT_CLASS} />
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-bold uppercase tracking-wide text-orange-300/80">Name</label>
+            <input placeholder="Product name" value={name} onChange={(e) => handleNameChange(e.target.value)}
+              className={INPUT_CLASS} />
+          </div>
 
-          <input placeholder="SKU" value={sku} disabled={category.sku !== null}
-            onChange={(e) => handleSkuChange(e.target.value)}
-            className={`${INPUT_CLASS} disabled:bg-zinc-900 disabled:text-orange-400/40`} />
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-bold uppercase tracking-wide text-orange-300/80">
+              SKU {category.sku !== null && <span className="font-medium text-orange-300/50">(fixed)</span>}
+            </label>
+            <input placeholder="SKU" value={sku} disabled={category.sku !== null}
+              onChange={(e) => handleSkuChange(e.target.value)}
+              className={`${INPUT_CLASS} font-mono disabled:cursor-not-allowed disabled:border-zinc-800 disabled:bg-zinc-900 disabled:text-orange-300`} />
+          </div>
 
           {category.hasSubtitle && (
-            <input placeholder="Subtitle" value={subtitle} onChange={(e) => setSubtitle(e.target.value)}
-              className={INPUT_CLASS} />
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-bold uppercase tracking-wide text-orange-300/80">Subtitle</label>
+              <input placeholder="Subtitle" value={subtitle} onChange={(e) => setSubtitle(e.target.value)}
+                className={INPUT_CLASS} />
+            </div>
           )}
 
-          <input type="number" min="0" placeholder="Qty" value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-            className={INPUT_CLASS} />
-          <input type="number" min="0" step="0.01" placeholder="Unit Price ($)" value={priceInput}
-            onChange={(e) => setPriceInput(e.target.value)} title="e.g. 5.00 = $5.00"
-            className={INPUT_CLASS} />
-          <input type="number" min="0" step="0.01" placeholder="Cost ($)" value={costInput}
-            onChange={(e) => setCostInput(e.target.value)} title="e.g. 2.50 = $2.50"
-            className={INPUT_CLASS} />
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-bold uppercase tracking-wide text-orange-300/80">Quantity</label>
+            <input type="number" min="0" placeholder="Qty" value={quantity}
+              onChange={(e) => setQuantity(e.target.value)} className={INPUT_CLASS} />
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-bold uppercase tracking-wide text-orange-300/80">Unit Price ($)</label>
+            <input type="number" min="0" step="0.01" placeholder="0.00" value={priceInput}
+              onChange={(e) => setPriceInput(e.target.value)} title="e.g. 5.00 = $5.00" className={INPUT_CLASS} />
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-bold uppercase tracking-wide text-orange-300/80">Cost ($)</label>
+            <input type="number" min="0" step="0.01" placeholder="0.00" value={costInput}
+              onChange={(e) => setCostInput(e.target.value)} title="e.g. 2.50 = $2.50" className={INPUT_CLASS} />
+          </div>
         </div>
 
         {/* Content textarea (delivery lines: proxy lines, creds, account info, etc.) */}

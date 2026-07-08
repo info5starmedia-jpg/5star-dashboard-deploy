@@ -740,7 +740,7 @@ export default function DashboardPage() {
   const accPlans    = plans.filter((p) => p.oneTime === true);
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-6 px-6 py-10">
+    <div className="mx-auto w-full max-w-[1400px] space-y-6 px-6 py-10">
       {/* Header */}
       <div>
         <p className="text-xs font-bold uppercase tracking-wide text-orange-400">Dashboard</p>
