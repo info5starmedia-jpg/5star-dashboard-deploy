@@ -39,7 +39,7 @@ export async function sendInvoiceEmail(opts: {
           `<h2 style="margin-bottom:8px">Invoice #${shortId}</h2>`,
           "<p>Thank you for your business. Please find your invoice attached as a PDF.</p>",
           '<hr style="border:none;border-top:1px solid #eee;margin:24px 0"/>',
-          '<p style="font-size:12px;color:#999">Sent by 5Star Media. Reply to this email with any questions.</p>',
+          '<p style="font-size:12px;color:#999">Sent by Viking Essentials. Reply to this email with any questions.</p>',
           "</div>",
         ].join(""),
         attachments: [
