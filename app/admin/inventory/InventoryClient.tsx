@@ -49,6 +49,16 @@ function slugify(value: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+// For freeform (custom / digital) products: guarantee a unique SKU so each
+// creation is its own separate item and rapid entry never collides.
+function uniqueSku(base: string, taken: Set<string>): string {
+  const root = base || "item";
+  if (!taken.has(root)) return root;
+  let n = 2;
+  while (taken.has(`${root}-${n}`)) n++;
+  return `${root}-${n}`;
+}
+
 export default function InventoryClient() {
   const [items, setItems] = useState<Item[]>([]);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
@@ -177,19 +187,35 @@ export default function InventoryClient() {
           }),
         });
       } else {
+        // Freeform (custom / digital) products get a guaranteed-unique SKU so
+        // each creation is a SEPARATE item and repeated names never collide.
+        const isFreeform = category.sku === null;
+        const finalSku = isFreeform
+          ? uniqueSku(slugify(sku.trim() || name.trim()), new Set(items.map((i) => i.sku)))
+          : sku.trim();
         await api("/api/admin/inventory", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name: name.trim(),
             subtitle: category.hasSubtitle ? subtitle.trim() : undefined,
-            sku: sku.trim(),
+            sku: finalSku,
             quantity: effectiveQty,
             priceCents,
             costCents,
             ...(trimmedContent ? { content: trimmedContent } : {}),
           }),
         });
+        // Reset the form so the next custom/digital product starts clean.
+        if (isFreeform) {
+          const seed = category.defaultName;
+          setName(seed);
+          setSku(seed ? slugify(seed) : "");
+          setSubtitle("");
+          setPriceInput("");
+          setCostInput("");
+          setSkuTouched(false);
+        }
       }
       setQuantity("1");
       setContent("");
@@ -343,6 +369,12 @@ export default function InventoryClient() {
         {existingItem && (
           <p className="mt-2 text-sm font-medium text-orange-300">
             {existingItem.quantity} currently in stock under <span className="font-mono">{existingItem.sku}</span> — this adds to that total.
+          </p>
+        )}
+
+        {category.sku === null && (
+          <p className="mt-2 text-sm font-medium text-orange-300">
+            Custom &amp; digital products are saved as <strong>separate items</strong> — name each one (e.g.&nbsp;&quot;apples&quot;, &quot;cherry&quot;) and it gets its own SKU &amp; inventory.
           </p>
         )}
 
