@@ -1,0 +1,145 @@
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { stripe } from "@/lib/stripe";
+
+async function requireAdmin() {
+  const session = await getServerSession(authOptions);
+  const user = session?.user as { email?: string | null; isAdmin?: boolean } | undefined;
+  if (!user?.email || !user?.isAdmin) return null;
+  return session;
+}
+
+// GET /api/admin/promo-codes — list all promo codes
+export async function GET() {
+  if (!await requireAdmin()) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const codes = await prisma.promoCode.findMany({
+    orderBy: { createdAt: "desc" },
+    include: {
+      _count: { select: { usages: true } },
+    },
+  });
+
+  return NextResponse.json({ codes });
+}
+
+// POST /api/admin/promo-codes — create promo code + sync to Stripe
+export async function POST(request: Request) {
+  const session = await requireAdmin();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await request.json().catch(() => null) as {
+    code?: string;
+    promoter?: string;
+    discountType?: "percent" | "amount";
+    discountValue?: number;
+    isLifetime?: boolean;
+    expiresAt?: string | null;
+    isActive?: boolean;
+  } | null;
+
+  if (!body?.code || !body?.promoter || !body?.discountType || !body?.discountValue) {
+    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+  }
+
+  const code = body.code.toUpperCase().trim();
+  const discountValue = Number(body.discountValue);
+
+  if (discountValue <= 0) {
+    return NextResponse.json({ error: "Discount value must be greater than 0" }, { status: 400 });
+  }
+  if (body.discountType === "percent" && discountValue > 100) {
+    return NextResponse.json({ error: "Percent discount cannot exceed 100" }, { status: 400 });
+  }
+
+  // Check duplicate
+  const existing = await prisma.promoCode.findUnique({ where: { code } });
+  if (existing) {
+    return NextResponse.json({ error: "Promo code already exists" }, { status: 409 });
+  }
+
+  let stripeCouponId: string | null = null;
+  let stripePromoId: string | null = null;
+
+  try {
+    // Create Stripe coupon
+    const couponData: Record<string, unknown> = {
+      name: `${body.promoter} — ${code}`,
+      duration: body.isLifetime ? "forever" : "once",
+      metadata: { promoter: body.promoter, code },
+    };
+
+    if (body.discountType === "percent") {
+      couponData.percent_off = discountValue;
+    } else {
+      couponData.amount_off = discountValue; // already in cents
+      couponData.currency = "usd";
+    }
+
+    if (!body.isLifetime && body.expiresAt) {
+      couponData.redeem_by = Math.floor(new Date(body.expiresAt).getTime() / 1000);
+    }
+
+    const coupon = await stripe.coupons.create(couponData as Parameters<typeof stripe.coupons.create>[0]);
+    stripeCouponId = coupon.id;
+
+    // Create Stripe promotion code
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const promo = await stripe.promotionCodes.create({
+      coupon: coupon.id,
+      code,
+      active: body.isActive !== false,
+      metadata: { promoter: body.promoter },
+    } as any);
+    stripePromoId = promo.id;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Stripe error";
+    return NextResponse.json({ error: `Stripe sync failed: ${msg}` }, { status: 500 });
+  }
+
+  const promoCode = await prisma.promoCode.create({
+    data: {
+      code,
+      promoter: body.promoter.trim(),
+      discountType: body.discountType,
+      discountValue,
+      isLifetime: body.isLifetime ?? true,
+      expiresAt: body.isLifetime ? null : (body.expiresAt ? new Date(body.expiresAt) : null),
+      isActive: body.isActive !== false,
+      stripeCouponId,
+      stripePromoId,
+    },
+  });
+
+  return NextResponse.json({ promoCode }, { status: 201 });
+}
+
+// DELETE /api/admin/promo-codes?id=xxx — delete from DB + deactivate in Stripe
+export async function DELETE(request: Request) {
+  if (!await requireAdmin()) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get("id");
+  if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
+
+  const code = await prisma.promoCode.findUnique({ where: { id } });
+  if (!code) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Deactivate in Stripe (can't delete coupons that have been used)
+  if (code.stripePromoId) {
+    try {
+      await stripe.promotionCodes.update(code.stripePromoId, { active: false });
+    } catch { /* best-effort */ }
+  }
+
+  await prisma.promoCode.delete({ where: { id } });
+  return NextResponse.json({ ok: true });
+}

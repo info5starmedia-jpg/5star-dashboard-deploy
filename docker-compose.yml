@@ -1,0 +1,14 @@
+services:
+  app:
+    environment:
+      - NEXT_DISABLE_FONT_OPTIMIZATION=1
+      - NEXTAUTH_URL_INTERNAL=http://localhost:3000
+      - NEXTAUTH_URL=https://app.vikingessentials.net
+    build: .
+    ports:
+      - "127.0.0.1:3002:3000"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
