@@ -6,9 +6,9 @@ import Link from "next/link";
 export default function SignInPage() {
   return (
     <main className="mx-auto w-full max-w-md px-6 py-20">
-      <div className="rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm">
-        <h1 className="text-2xl font-bold text-zinc-900">Sign in to 5Star</h1>
-        <p className="mt-2 text-sm text-zinc-500">Choose a provider to continue.</p>
+      <div className="rounded-2xl border border-orange-400/30 bg-zinc-900 p-8 shadow-sm">
+        <h1 className="text-2xl font-bold text-orange-400">Sign in to Viking Essentials</h1>
+        <p className="mt-2 text-sm text-zinc-400">Choose a provider to continue.</p>
 
         <div className="mt-6 flex flex-col gap-3">
           <button
@@ -23,7 +23,7 @@ export default function SignInPage() {
 
           <button
             onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
-            className="flex items-center justify-center gap-3 rounded-lg border border-zinc-300 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
+            className="flex items-center justify-center gap-3 rounded-lg border border-orange-400/30 bg-zinc-800 px-4 py-3 text-sm font-semibold text-zinc-100 transition hover:bg-zinc-700"
           >
             <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
@@ -35,8 +35,8 @@ export default function SignInPage() {
           </button>
         </div>
 
-        <div className="mt-6 border-t border-zinc-100 pt-5">
-          <Link href="/" className="text-sm text-zinc-400 transition hover:text-zinc-700">
+        <div className="mt-6 border-t border-zinc-800 pt-5">
+          <Link href="/" className="text-sm text-zinc-400 transition hover:text-orange-300">
             &larr; Back to home
           </Link>
         </div>

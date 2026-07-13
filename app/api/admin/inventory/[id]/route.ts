@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdminSession } from "@/lib/admin";
 import { logAudit } from "@/lib/audit";
 import { notifyLowStock } from "@/lib/alerts";
+import { rateLimit } from "@/lib/rateLimit";
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const session = await requireAdminSession();
@@ -21,6 +22,11 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     if (!name) return NextResponse.json({ error: "Name cannot be empty" }, { status: 400 });
     updates.name = name;
     changes.push(`name: "${existing.name}" → "${name}"`);
+  }
+  if (body.subtitle !== undefined) {
+    const subtitle = String(body.subtitle).trim();
+    updates.subtitle = subtitle || null;
+    changes.push(`subtitle: "${existing.subtitle ?? ""}" → "${subtitle}"`);
   }
   if (body.quantity !== undefined) {
     const quantity = Math.floor(Number(body.quantity));
@@ -46,6 +52,19 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     updates.costCents = costCents;
     changes.push(`cost: ${existing.costCents}¢ → ${costCents}¢`);
   }
+  if (body.content !== undefined) {
+    const rawContent = typeof body.content === "string" ? body.content.trim() : "";
+    const contentLines = rawContent ? rawContent.split("\n").filter((l: string) => l.trim()) : [];
+    const content = contentLines.length > 0 ? contentLines.join("\n") : null;
+    updates.content = content;
+    // Auto-sync quantity to line count when content is provided
+    if (content) {
+      updates.quantity = contentLines.length;
+      changes.push(`content: ${contentLines.length} lines, qty auto-set`);
+    } else {
+      changes.push(`content: cleared`);
+    }
+  }
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "No fields to update" }, { status: 400 });
@@ -65,6 +84,12 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 export async function DELETE(_: Request, ctx: { params: Promise<{ id: string }> }) {
   const session = await requireAdminSession();
   if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  // SECURITY: Hard limit — max 5 deletions per minute per admin (prevents bulk wipe)
+  const adminEmail = (session.user as { email?: string | null })?.email ?? "unknown";
+  if (rateLimit(`admin-delete:${adminEmail}`, 5, 60_000)) {
+    return NextResponse.json({ error: "Too many delete requests — wait 60 seconds" }, { status: 429 });
+  }
 
   const { id } = await ctx.params;
   const existing = await prisma.inventoryItem.findUnique({ where: { id } });

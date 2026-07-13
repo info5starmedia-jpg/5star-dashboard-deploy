@@ -66,11 +66,11 @@ isAdmin = email === OWNER_EMAIL  OR  email in ADMIN_EMAIL_ALLOWLIST
 
 ### Route Protection Layers
 
-1. **`middleware.ts`** — Edge middleware, runs before every request. Redirects:
-   - `/admin/**` → `/signin` if not admin
-   - `/api/admin/**` → 401 if not admin
-   - `/dashboard/**` → `/billing` if not subscriber (and not admin)
-   - `/billing/**` → `/signin` if not authenticated
+1. **`proxy.ts`** — Runs before every matched request (the Next.js 16 successor
+   to `middleware.ts`; nodejs runtime). Redirects:
+   - `/admin/**` → `/` if not admin
+   - `/api/admin/**` → `/` if not admin (handlers also return 401/403 directly)
+   - `/dashboard/**` and `/billing` → `/signin` if not authenticated
    - Stripe webhook path `/api/stripe/webhook` is explicitly bypassed
 
 2. **Layout guards** — `app/admin/layout.tsx` calls `requireAdminSession()` server-side as a second check

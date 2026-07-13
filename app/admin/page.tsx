@@ -11,18 +11,18 @@ const tools = [
 export default function AdminHome() {
   return (
     <main>
-      <h1 className="text-2xl font-bold text-zinc-900">Admin Tools</h1>
-      <p className="mt-2 text-sm text-zinc-500">Manage your 5Star Media dashboard.</p>
+      <h1 className="text-2xl font-bold text-orange-400">Admin Tools</h1>
+      <p className="mt-2 text-sm text-zinc-400">Manage your Viking Essentials dashboard.</p>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {tools.map((t) => (
           <Link
             key={t.href}
             href={t.href}
-            className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:border-zinc-300 hover:shadow-md"
+            className="rounded-xl border border-orange-400/30 bg-zinc-900 p-5 shadow-sm transition hover:border-orange-400/50 hover:shadow-md"
           >
-            <div className="text-base font-semibold text-zinc-900">{t.label}</div>
-            <div className="mt-1 text-sm text-zinc-500">{t.desc}</div>
+            <div className="text-base font-semibold text-orange-300">{t.label}</div>
+            <div className="mt-1 text-sm text-zinc-400">{t.desc}</div>
           </Link>
         ))}
       </div>

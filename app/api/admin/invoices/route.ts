@@ -41,11 +41,17 @@ export async function POST(request: Request) {
   const customerEmail = body?.customerEmail ? String(body.customerEmail).trim() : null;
 
   try {
+    // Aggregate quantities per SKU so several line items sharing one SKU are
+    // validated against the combined total, not each against original stock.
+    const skuTotals = new Map<string, number>();
+    for (const item of normalized) {
+      if (item.sku) skuTotals.set(item.sku, (skuTotals.get(item.sku) ?? 0) + item.quantity);
+    }
+
     const invoice = await prisma.$transaction(async (tx) => {
-      for (const item of normalized) {
-        if (!item.sku) continue;
-        const inv = await tx.inventoryItem.findUnique({ where: { sku: item.sku } });
-        if (inv && inv.quantity < item.quantity) throw new Error(`Insufficient inventory for SKU ${item.sku}`);
+      for (const [sku, qty] of skuTotals) {
+        const inv = await tx.inventoryItem.findUnique({ where: { sku } });
+        if (inv && inv.quantity < qty) throw new Error(`Insufficient inventory for SKU ${sku}`);
       }
       const created = await tx.invoice.create({
         data: {
@@ -58,10 +64,9 @@ export async function POST(request: Request) {
         },
         include: { lineItems: true },
       });
-      for (const item of normalized) {
-        if (!item.sku) continue;
-        const inv = await tx.inventoryItem.findUnique({ where: { sku: item.sku } });
-        if (inv) await tx.inventoryItem.update({ where: { sku: item.sku }, data: { quantity: { decrement: item.quantity } } });
+      for (const [sku, qty] of skuTotals) {
+        const inv = await tx.inventoryItem.findUnique({ where: { sku } });
+        if (inv) await tx.inventoryItem.update({ where: { sku }, data: { quantity: { decrement: qty } } });
       }
       return created;
     });

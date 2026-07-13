@@ -10,7 +10,8 @@ datasource db {
 model User {
   id          String   @id @default(cuid())
   email       String   @unique
-  role        String   @default("user") // "user" | "admin"
+  role        String   @default("user") // "user" | "admin" | "promoter"
+  disabled    Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   lastLoginAt DateTime?
@@ -54,6 +55,8 @@ model StripeEvent {
 model InventoryItem {
   id         String   @id @default(cuid())
   name       String
+  subtitle   String?
+  content    String?
   sku        String   @unique
   quantity   Int
   priceCents Int
@@ -89,6 +92,46 @@ model InvoiceLineItem {
   quantity       Int
   unitPriceCents Int
   totalCents     Int
+  deliveredContent String?
 
   @@index([invoiceId])
+}
+
+model PromoCode {
+  id                String           @id @default(cuid())
+  code              String           @unique
+  promoter          String
+  discountType      String           // "percent" | "amount"
+  discountValue     Int              // percent 1-100 OR cents
+  isLifetime        Boolean          @default(false)
+  expiresAt         DateTime?
+  isActive          Boolean          @default(true)
+  stripeCouponId    String?
+  stripePromoId     String?
+  totalUses         Int              @default(0)
+  appliesToProducts String?
+  totalRevenueCents Int              @default(0)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  usages            PromoCodeUsage[]
+
+  @@index([code])
+  @@index([promoter])
+  @@index([isActive])
+}
+
+model PromoCodeUsage {
+  id            String    @id @default(cuid())
+  promoCodeId   String
+  promoCode     PromoCode @relation(fields: [promoCodeId], references: [id], onDelete: Cascade)
+  code          String
+  promoter      String
+  customerEmail String
+  orderId       String
+  amountCents   Int
+  createdAt     DateTime  @default(now())
+
+  @@index([promoCodeId])
+  @@index([promoter])
+  @@index([customerEmail])
 }

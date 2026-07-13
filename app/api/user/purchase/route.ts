@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireAdminSession } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
 import { sendDiscordAlert } from "@/lib/alerts";
 import { logAudit } from "@/lib/audit";
 
+// Admin-only for now: this creates an "issued" invoice and decrements stock
+// with NO payment collected. It predates the Stripe product-purchase flow
+// (see the webhook's `product_purchase` handling, which fulfills only after
+// Stripe confirms payment) and was never wired to a customer-facing button.
+// Left in as an admin tool for manual/comp orders; do not open this to
+// regular users without putting a real payment step in front of it.
 function getMeta(request: Request) {
   return {
     ip: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
@@ -20,9 +25,9 @@ function formatMoney(cents: number) {
 }
 
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions);
+  const session = await requireAdminSession();
   if (!session?.user?.email) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const userEmail = session.user.email;
@@ -59,10 +64,27 @@ export async function POST(request: Request) {
       const unitPriceCents = item.priceCents;
       const totalCents = unitPriceCents * quantity;
 
-      // Decrement stock
+      // If item has content (e.g. proxy lines), take N lines from the pool
+      let deliveredContent: string | null = null;
+      let remainingContent: string | null = item.content;
+      if (item.content) {
+        const allLines = item.content.split("\n").filter((l: string) => l.trim());
+        if (allLines.length < quantity) {
+          throw new Error(`Only ${allLines.length} items available in pool — you requested ${quantity}`);
+        }
+        const taken = allLines.slice(0, quantity);
+        const remaining = allLines.slice(quantity);
+        deliveredContent = taken.join("\n");
+        remainingContent = remaining.length > 0 ? remaining.join("\n") : null;
+      }
+
+      // Decrement stock + update content pool
       await tx.inventoryItem.update({
         where: { sku },
-        data: { quantity: { decrement: quantity } },
+        data: {
+          quantity: { decrement: quantity },
+          ...(item.content !== null ? { content: remainingContent } : {}),
+        },
       });
 
       // Create invoice under customer's email
@@ -82,6 +104,7 @@ export async function POST(request: Request) {
                 quantity,
                 unitPriceCents,
                 totalCents,
+                deliveredContent,
               },
             ],
           },
