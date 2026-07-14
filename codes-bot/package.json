@@ -1,0 +1,19 @@
+{
+  "name": "codes-bot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Scrapes presale codes from multiple Gmail inboxes + AYCD Inbox into a master Google Sheet, with a versioned local backup.",
+  "scripts": {
+    "start": "node src/index.mjs",
+    "selftest": "node selftest.mjs"
+  },
+  "dependencies": {
+    "googleapis": "^140.0.0",
+    "imapflow": "^1.0.171",
+    "mailparser": "^3.7.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

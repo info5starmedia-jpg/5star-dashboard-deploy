@@ -15,6 +15,10 @@ data/
 *.db
 *.db-journal
 
+# ...but codes-bot keeps its recovery ledger in git on purpose
+!codes-bot/data/
+!codes-bot/data/**
+
 # OS / editor
 .DS_Store
 .vscode/
